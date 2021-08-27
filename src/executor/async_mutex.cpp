@@ -20,7 +20,6 @@ class AsyncMutex : public IExecutor, public ITask {
     auto task = static_cast<ITask*>(nodes);
     while (task != nullptr) {
       auto next = static_cast<ITask*>(task->_next);
-      task->Call();
       task->DecRef();
       task = next;
     }
@@ -34,6 +33,10 @@ class AsyncMutex : public IExecutor, public ITask {
     if (_work_counter.fetch_add(1, std::memory_order_acq_rel) == 0) {
       _executor->Execute(*this);
     }
+  }
+
+  Type Tag() const final {
+    return Type::AsyncMutex;
   }
 
   void Call() noexcept final {

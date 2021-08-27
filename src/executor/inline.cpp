@@ -10,6 +10,10 @@ class Inline final : public IExecutor {
     task.Call();
   }
 
+  Type Tag() const final {
+    return Type::Inline;
+  }
+
   void IncRef() noexcept final {
   }
   void DecRef() noexcept final {

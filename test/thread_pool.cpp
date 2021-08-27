@@ -14,7 +14,12 @@ namespace {
 using namespace yaclib;
 using namespace std::chrono_literals;
 
-GTEST_TEST(single_threaded, just_works) {
+static auto assert_hardware_concurrency_ne_1 = [] {
+  EXPECT_NE(std::thread::hardware_concurrency(), 1);
+  return nullptr;
+}();
+
+GTEST_TEST(hardware_concurrency, just_works) {
   auto tp = executor::MakeThreadPool();
 
   bool ready{false};
