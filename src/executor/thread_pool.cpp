@@ -118,8 +118,7 @@ class ThreadPool : public IThreadPool {
 
 class SingleThread : public IThreadPool {
  public:
-  explicit SingleThread(IThreadFactoryPtr factory)
-      : _factory{std::move(factory)} {
+  explicit SingleThread(IThreadFactoryPtr factory) : _factory{std::move(factory)} {
     auto loop = MakeFunc([this] {
       tlCurrentThreadPool = this;
       Loop();
@@ -134,8 +133,8 @@ class SingleThread : public IThreadPool {
   }
 
   void Execute(ITask& task) final {
-    const auto state = _state.load(std::memory_order_acquire);
     task.IncRef();
+    const auto state = _state.load(std::memory_order_acquire);
     if (state == kStop || state == kHardStop) {
       task.DecRef();
       return;
@@ -143,6 +142,8 @@ class SingleThread : public IThreadPool {
     _tasks.Put(&task);
 
     if (_work_counter.fetch_add(1, std::memory_order_acq_rel) == 0) {
+      _m.lock();
+      _m.unlock();
       _cv.notify_one();
     }
   }
@@ -152,17 +153,26 @@ class SingleThread : public IThreadPool {
   }
 
   void SoftStop() {
-    _state.store(kSoftStop, std::memory_order_release);
+    {
+      std::lock_guard guard{_m};
+      _state.store(kSoftStop, std::memory_order_release);
+    }
     _cv.notify_one();
   }
 
   void Stop() {
-    _state.store(kStop, std::memory_order_release);
+    {
+      std::lock_guard guard{_m};
+      _state.store(kStop, std::memory_order_release);
+    }
     _cv.notify_one();
   }
 
   void HardStop() {
-    _state.store(kHardStop, std::memory_order_release);
+    {
+      std::lock_guard guard{_m};
+      _state.store(kHardStop, std::memory_order_release);
+    }
     _cv.notify_one();
   }
 
@@ -172,39 +182,39 @@ class SingleThread : public IThreadPool {
 
  private:
   void Loop() noexcept {
-    std::unique_lock guard{_m};
-
     while (true) {
-      auto state = _state.load(std::memory_order_acquire);
-      auto nodes{_tasks.TakeAllFIFO()};
-      auto task = static_cast<ITask*>(nodes);
+      int32_t size = 0;
+      do {
+        size = 0;
 
-      if (state == kStop && task == nullptr) {
-        return;
-      }
-
-      state = _state.load(std::memory_order_acquire);
-      if (state == kSoftStop && task == nullptr) {
-        Stop();
-      }
-
-      size_t size = 0;
-      while (task != nullptr) {
-        state = _state.load(std::memory_order_acquire);
-        if (state == kHardStop) {
-          KillTasks(task);
-          KillTasks(static_cast<ITask*>(_tasks.TakeAllLIFO()));
+        auto state = _state.load(std::memory_order_acquire);
+        auto nodes{_tasks.TakeAllFIFO()};
+        if ((state == kHardStop || state == kStop) && nodes == nullptr) {
           return;
         }
+        state = _state.load(std::memory_order_acquire);
+        if (state == kSoftStop && nodes == nullptr) {
+          Stop();
+        }
 
-        auto next = static_cast<ITask*>(task->_next);
-        task->Call();
-        ++size;
-        task->DecRef();
-        task = next;
-      }
+        auto task = static_cast<ITask*>(nodes);
+        while (task != nullptr) {
+          state = _state.load(std::memory_order_acquire);
+          if (state == kHardStop) {
+            KillTasks(task);
+            KillTasks(static_cast<ITask*>(_tasks.TakeAllLIFO()));
+            return;
+          }
+          auto next = static_cast<ITask*>(task->_next);
+          task->Call();
+          task->DecRef();
+          task = next;
+          ++size;
+        }
 
-      if (_work_counter.fetch_sub(size, std::memory_order_acq_rel) <= size) {
+      } while (_work_counter.fetch_sub(size, std::memory_order_acq_rel) > size);
+      std::unique_lock guard{_m};
+      if (_work_counter.load(std::memory_order_acquire) <= 0 && _state.load(std::memory_order_acquire) == kRun) {
         _cv.wait(guard);
       }
     }
@@ -231,7 +241,7 @@ class SingleThread : public IThreadPool {
   std::atomic<State> _state{kRun};
   std::mutex _m;
   std::condition_variable _cv;
-  alignas(kCacheLineSize) std::atomic<size_t> _work_counter{0};
+  alignas(kCacheLineSize) std::atomic_int32_t _work_counter{0};
 };
 
 }  // namespace
