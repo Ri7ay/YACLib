@@ -152,7 +152,7 @@ class SingleThread : public IThreadPool {
     return Type::SingleThread;
   }
 
-  void SoftStop() {
+  void SoftStop() final {
     {
       std::lock_guard guard{_m};
       _state.store(kSoftStop, std::memory_order_release);
@@ -160,7 +160,7 @@ class SingleThread : public IThreadPool {
     _cv.notify_one();
   }
 
-  void Stop() {
+  void Stop() final {
     {
       std::lock_guard guard{_m};
       _state.store(kStop, std::memory_order_release);
@@ -168,7 +168,7 @@ class SingleThread : public IThreadPool {
     _cv.notify_one();
   }
 
-  void HardStop() {
+  void HardStop() final {
     {
       std::lock_guard guard{_m};
       _state.store(kHardStop, std::memory_order_release);
@@ -220,7 +220,7 @@ class SingleThread : public IThreadPool {
     }
   }
 
-  void KillTasks(ITask* head) {
+  static void KillTasks(ITask* head) {
     while (head != nullptr) {
       auto next = static_cast<ITask*>(head->_next);
       head->DecRef();
