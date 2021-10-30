@@ -1,4 +1,4 @@
-#include "coroutines/standalone_coroutine_impl.hpp"
+#include "fibers/standalone_coroutine_impl.hpp"
 
 #include <thread>
 

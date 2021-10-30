@@ -1,7 +1,7 @@
 #pragma once
-#include <yaclib/coroutines/context/stack_view.hpp>
+#include <yaclib/fibers/stack_view.hpp>
 // TODO if
-#include "coroutines/context/setup_stack/setup_stack_x64.hpp"
+#include "setup_stack/setup_stack_x64.hpp"
 
 namespace yaclib {
 

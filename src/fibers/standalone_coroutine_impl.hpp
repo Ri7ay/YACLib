@@ -1,10 +1,10 @@
 #pragma once
 #include "coroutine_impl.hpp"
 
-#include <yaclib/coroutines/context/default_allocator.hpp>
-#include <yaclib/coroutines/context/stack.hpp>
-#include <yaclib/coroutines/context/stack_allocator.hpp>
-#include <yaclib/coroutines/standalone_coroutine.hpp>
+#include <yaclib/fibers/default_allocator.hpp>
+#include <yaclib/fibers/stack.hpp>
+#include <yaclib/fibers/stack_allocator.hpp>
+#include <yaclib/fibers/standalone_coroutine.hpp>
 
 namespace yaclib {
 

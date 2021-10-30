@@ -1,8 +1,8 @@
 #pragma once
-#include "coroutines/context/execution_context.hpp"
+#include "context/execution_context.hpp"
 
-#include <yaclib/coroutines/context/stack_view.hpp>
-#include <yaclib/coroutines/standalone_coroutine.hpp>
+#include <yaclib/fibers/stack_view.hpp>
+#include <yaclib/fibers/standalone_coroutine.hpp>
 
 #include <utility>
 

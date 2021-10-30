@@ -1,6 +1,6 @@
 #pragma once
-#include <yaclib/coroutines/context/stack_allocator.hpp>
-#include <yaclib/coroutines/context/stack_view.hpp>
+#include <yaclib/fibers/stack_allocator.hpp>
+#include <yaclib/fibers/stack_view.hpp>
 
 #include <cstddef>
 

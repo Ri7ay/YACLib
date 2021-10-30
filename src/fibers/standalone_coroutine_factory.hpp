@@ -1,5 +1,5 @@
 #pragma once
-#include <yaclib/coroutines/standalone_coroutine.hpp>
+#include <yaclib/fibers/standalone_coroutine.hpp>
 
 namespace yaclib {
 

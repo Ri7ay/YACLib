@@ -1,4 +1,4 @@
-#include <yaclib/coroutines/context/default_allocator.hpp>
+#include <yaclib/fibers/default_allocator.hpp>
 
 #include <sys/mman.h>
 
