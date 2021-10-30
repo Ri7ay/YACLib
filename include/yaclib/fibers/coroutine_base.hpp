@@ -1,18 +1,21 @@
 #pragma once
-#include "context/execution_context.hpp"
+#include "yaclib/fibers/detail/execution_context.hpp"
 
-#include <yaclib/fibers/stack_view.hpp>
-#include <yaclib/fibers/standalone_coroutine.hpp>
+#include "stack_view.hpp"
+#include <yaclib/util/func.hpp>
 
 #include <utility>
 
 namespace yaclib {
+
+using Routine = yaclib::util::IFuncPtr;
+
 /***
  * base coroutine class
  */
-class CoroutineImpl {
+class CoroutineBase {
  public:
-  CoroutineImpl(const StackView& stack_view, Routine routine) : _routine(std::move(routine)) {
+  CoroutineBase(const StackView& stack_view, Routine routine) : _routine(std::move(routine)) {
     _context.Setup(stack_view, Trampoline, this);
   }
 

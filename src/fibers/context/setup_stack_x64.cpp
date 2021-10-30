@@ -1,4 +1,4 @@
-#include "setup_stack_x64.hpp"
+#include "yaclib/fibers/detail/setup_stack_x64.hpp"
 
 #include <cstdint>
 

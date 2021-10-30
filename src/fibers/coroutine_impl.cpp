@@ -1,44 +1,33 @@
-#include "coroutine_impl.hpp"
+#include "yaclib/fibers/coroutine_impl.hpp"
 
 namespace yaclib {
+
+static thread_local CoroutineImpl* current = nullptr;
+
+CoroutineImpl::CoroutineImpl(StackAllocator& allocator, Routine routine)
+    : _stack(allocator.Allocate(), allocator), _impl(_stack.View(), std::move(routine)) {
+}
+
+CoroutineImpl::CoroutineImpl(Routine routine) : CoroutineImpl(default_allocator_instance, std::move(routine)) {
+}
 
 void CoroutineImpl::operator()() {
   Resume();
 }
 void CoroutineImpl::Resume() {
-  if (IsCompleted()) {
-    return;
-  }
+  CoroutineImpl* prev = current;
+  current = this;
 
-  _caller_context.SwitchTo(_context);
-
-  if (_exception != nullptr) {
-    rethrow_exception(_exception);
-  }
+  _impl.Resume();
+  current = prev;
 }
+
 void CoroutineImpl::Yield() {
-  _context.SwitchTo(_caller_context);
+  current->_impl.Yield();
 }
 
 bool CoroutineImpl::IsCompleted() const {
-  return _completed;
-}
-
-void CoroutineImpl::Complete() {
-  _completed = true;
-  _context.SwitchTo(_caller_context);
-}
-
-void CoroutineImpl::Trampoline(void* arg) {
-  auto* coroutine = reinterpret_cast<CoroutineImpl*>(arg);
-
-  try {
-    coroutine->_routine->Call();
-  } catch (...) {
-    coroutine->_exception = std::current_exception();
-  }
-
-  coroutine->Complete();
+  return _impl.IsCompleted();
 }
 
 }  // namespace yaclib

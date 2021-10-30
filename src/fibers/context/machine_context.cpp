@@ -1,4 +1,4 @@
-#include "machine_context.hpp"
+#include "yaclib/fibers/detail/machine_context.hpp"
 
 extern "C" void __yaclib_switch_context(void* from_context, void* to_context);
 
