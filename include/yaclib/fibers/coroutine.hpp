@@ -7,11 +7,11 @@
 
 namespace yaclib {
 
-class CoroutineImpl {
+class Coroutine {
  public:
-  CoroutineImpl(StackAllocator& allocator, Routine routine);
+  Coroutine(StackAllocator& allocator, Routine routine);
 
-  CoroutineImpl(Routine routine);
+  Coroutine(Routine routine);
 
   void operator()();
 
@@ -19,7 +19,7 @@ class CoroutineImpl {
 
   bool IsCompleted() const;
 
-  ~CoroutineImpl() = default;
+  ~Coroutine() = default;
 
   static void Yield();
 

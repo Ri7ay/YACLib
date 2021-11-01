@@ -1,5 +1,5 @@
 list(APPEND YACLIB_INCLUDES
-  ${YACLIB_INCLUDE_DIR}/fibers/coroutine_impl.hpp
+  ${YACLIB_INCLUDE_DIR}/fibers/coroutine.hpp
   ${YACLIB_INCLUDE_DIR}/fibers/coroutine_base.hpp
   ${YACLIB_INCLUDE_DIR}/fibers/stack.hpp
   ${YACLIB_INCLUDE_DIR}/fibers/stack_allocator.hpp
@@ -19,7 +19,7 @@ SET(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 
 list(APPEND YACLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/coroutine_base.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/coroutine_impl.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/coroutine.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/context/execution_context.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/context/machine_context.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/context/default_allocator.cpp

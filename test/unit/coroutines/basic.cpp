@@ -1,63 +1,49 @@
-#include <yaclib/fibers/coroutine_impl.hpp>
+#include "yaclib/fibers/coroutine.hpp"
+
+#include <yaclib/util/func.hpp>
 
 #include <thread>
 
 #include <gtest/gtest.h>
 
-template <class T>
-class MyTask : public yaclib::util::IFunc {
- public:
-  explicit MyTask(T func) : _func(std::move(func)) {
-  }
-
- private:
-  void Call() noexcept override {
-    _func();
-  }
-
-  void IncRef() noexcept override {
-  }
-
-  void DecRef() noexcept override {
-  }
-
-  T _func;
-};
+template <typename Func>
+auto MakeMyFunc(Func&& f) {
+  return yaclib::util::NothingCounter<yaclib::util::detail::CallImpl<yaclib::util::IFunc, std::decay_t<Func>>>{
+      std::forward<Func>(f)};
+}
 
 TEST(coroutine, basic) {
   std::string test;
-  auto test_task = MyTask([&] {
+  auto test_task = MakeMyFunc([&] {
     for (int i = 0; i < 10; i++) {
       int k = i * 8;
       test.append(std::to_string(k));
-      yaclib::CoroutineImpl::Yield();
+      yaclib::Coroutine::Yield();
     }
   });
-  auto coroutine = yaclib::CoroutineImpl(yaclib::util::Ptr<yaclib::util::IFunc>(&test_task, false));
+  yaclib::Coroutine coroutine{&test_task};
   while (!coroutine.IsCompleted()) {
     test.append("!");
     coroutine.Resume();
   }
-  EXPECT_EQ(yaclib::default_allocator_instance.GetMinStackSize(), 4096);
   EXPECT_EQ(test, "!0!8!16!24!32!40!48!56!64!72!");
 }
 
 TEST(coroutine, basic2) {
   std::string test;
-  auto test_task1 = MyTask([&] {
+  auto test_task1 = MakeMyFunc([&] {
     test.append("1");
-    yaclib::CoroutineImpl::Yield();
+    yaclib::Coroutine::Yield();
     test.append("3");
   });
 
-  auto test_task2 = MyTask([&] {
+  auto test_task2 = MakeMyFunc([&] {
     test.append("2");
-    yaclib::CoroutineImpl::Yield();
+    yaclib::Coroutine::Yield();
     test.append("4");
   });
-
-  auto coroutine1 = yaclib::CoroutineImpl(yaclib::util::Ptr<yaclib::util::IFunc>(&test_task1, false));
-  auto coroutine2 = yaclib::CoroutineImpl(yaclib::util::Ptr<yaclib::util::IFunc>(&test_task2, false));
+  yaclib::Coroutine coroutine1{&test_task1};
+  yaclib::Coroutine coroutine2{&test_task2};
 
   coroutine1.Resume();
   coroutine2.Resume();
@@ -70,20 +56,20 @@ TEST(coroutine, basic2) {
 
 TEST(coroutine, basic3) {
   std::string test;
-  auto test_task = MyTask([&test]() {
+  auto test_task = MakeMyFunc([&test]() {
     test.append("1");
-    yaclib::CoroutineImpl::Yield();
+    yaclib::Coroutine::Yield();
     test.append("2");
-    yaclib::CoroutineImpl::Yield();
+    yaclib::Coroutine::Yield();
     test.append("3");
-    yaclib::CoroutineImpl::Yield();
+    yaclib::Coroutine::Yield();
     test.append("4");
   });
 
-  auto coroutine = yaclib::CoroutineImpl(yaclib::util::Ptr<yaclib::util::IFunc>(&test_task, false));
+  yaclib::Coroutine coroutine{&test_task};
 
   for (size_t i = 0; i < 4; ++i) {
-    std::thread t([&]() {
+    std::thread t([&] {
       coroutine.Resume();
     });
     t.join();
@@ -94,13 +80,12 @@ TEST(coroutine, basic3) {
 }
 
 static int TestFunctionWith2Args(const int* rsi, const int* rdi) {
-  auto test_task = MyTask([&] {
+  auto test_task = MakeMyFunc([&] {
     for (int i = 0; i < 10; i++) {
-      yaclib::CoroutineImpl::Yield();
+      yaclib::Coroutine::Yield();
     }
   });
-
-  auto coroutine = yaclib::CoroutineImpl(yaclib::util::Ptr<yaclib::util::IFunc>(&test_task, false));
+  yaclib::Coroutine coroutine{&test_task};
 
   int iter_count = 0;
   while (!coroutine.IsCompleted()) {
