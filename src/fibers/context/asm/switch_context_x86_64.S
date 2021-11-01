@@ -1,6 +1,8 @@
 #include "switch_context_x86_64.hpp"
 
 .text
+//TODO(myannyax) probably another alignment needed (8?)
+.align 4
 .globl YACLIB_FUNC_NAME(yaclib_switch_context)
 YACLIB_FUNC_NAME(yaclib_switch_context):
     // rdi = from
