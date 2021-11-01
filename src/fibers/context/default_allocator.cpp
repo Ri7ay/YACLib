@@ -4,7 +4,7 @@
 
 namespace yaclib {
 
-// TODO change to getting actual page size
+// TODO(myannyax) change to getting actual page size
 static const size_t kPageSize = 4096;
 
 static size_t PagesToBytes(size_t count) {
@@ -15,7 +15,7 @@ static void ProtectPages(char* start, size_t offset, size_t count) {
   mprotect(/*addr=*/static_cast<void*>(start + PagesToBytes(offset)),
            /*len=*/PagesToBytes(count),
            /*prot=*/PROT_NONE);
-  // todo check returns not -1
+  // TODO(myannyax) check returns not -1
 }
 
 Allocation DefaultAllocator::Allocate() const {
@@ -26,7 +26,7 @@ Allocation DefaultAllocator::Allocate() const {
                      /*flags=*/MAP_PRIVATE | MAP_ANONYMOUS,
                      /*fd=*/-1, /*offset=*/0);
 
-  // todo check start != MAP_FAILED
+  // TODO(myannyax) check start != MAP_FAILED
   auto allocation = Allocation{(char*)start, size};
   ProtectPages(allocation.start, 0, 1);
   return allocation;
@@ -41,7 +41,7 @@ void DefaultAllocator::Release(Allocation allocation) {
     }
 
     munmap(static_cast<void*>(allocation.start), allocation.size);
-    // todo check returns not -1
+    // TODO(myannyax) check returns not -1
   }
 }
 

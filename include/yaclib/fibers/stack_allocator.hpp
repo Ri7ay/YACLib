@@ -9,8 +9,8 @@ struct Allocation {
   size_t size = 0;
 };
 
-/***
- * passed to coroutine constructor
+/**
+ * Passed to coroutine constructor
  */
 class StackAllocator {
  public:

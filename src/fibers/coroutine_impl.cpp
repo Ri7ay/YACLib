@@ -14,6 +14,7 @@ CoroutineImpl::CoroutineImpl(Routine routine) : CoroutineImpl(default_allocator_
 void CoroutineImpl::operator()() {
   Resume();
 }
+
 void CoroutineImpl::Resume() {
   CoroutineImpl* prev = current;
   current = this;

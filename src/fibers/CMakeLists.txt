@@ -11,7 +11,7 @@ list(APPEND YACLIB_INCLUDES
   )
 
 list(APPEND YACLIB_HEADERS
-  # todo: pick based on a system
+  # TODO(myannyax): pick based on a system
   ${CMAKE_CURRENT_SOURCE_DIR}/context/asm/switch_context_x86_64.hpp
   )
 
@@ -23,7 +23,7 @@ list(APPEND YACLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/context/execution_context.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/context/machine_context.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/context/default_allocator.cpp
-  # todo: pick based on a system
+  # TODO(myannyax): pick based on a system
   ${CMAKE_CURRENT_SOURCE_DIR}/context/setup_stack_x64.cpp
   )
 

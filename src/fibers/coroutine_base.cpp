@@ -5,6 +5,7 @@ namespace yaclib {
 void CoroutineBase::operator()() {
   Resume();
 }
+
 void CoroutineBase::Resume() {
   if (IsCompleted()) {
     return;
@@ -16,6 +17,7 @@ void CoroutineBase::Resume() {
     rethrow_exception(_exception);
   }
 }
+
 void CoroutineBase::Yield() {
   _context.SwitchTo(_caller_context);
 }
