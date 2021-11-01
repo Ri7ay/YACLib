@@ -1,7 +1,8 @@
 #pragma once
-#include "yaclib/fibers/detail/execution_context.hpp"
 
 #include "stack_view.hpp"
+#include "yaclib/fibers/detail/execution_context.hpp"
+
 #include <yaclib/util/func.hpp>
 
 #include <utility>

@@ -1,9 +1,9 @@
 #pragma once
-#include "yaclib/fibers/coroutine_base.hpp"
 
 #include "default_allocator.hpp"
 #include "stack.hpp"
 #include "stack_allocator.hpp"
+#include "yaclib/fibers/coroutine_base.hpp"
 
 namespace yaclib {
 
