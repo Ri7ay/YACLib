@@ -1,24 +1,26 @@
 #pragma once
 
 #include "yaclib/fibers/stack_view.hpp"
-// TODO(myannyax) if
-#include "setup_stack_x64.hpp"
 
 namespace yaclib {
+
+using Trampoline = void (*)(void* arg);
 
 /***
  * registers and stack switch
  */
 class MachineContext {
  public:
-  MachineContext() = default;
+  MachineContext();
 
   void Setup(StackView stack, Trampoline trampoline, void* arg);
 
   void SwitchTo(MachineContext& target);
 
+  ~MachineContext();
+
  private:
-  YaclibFiberMachineContext _context;
+  void** _context;
 };
 
 }  // namespace yaclib

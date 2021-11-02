@@ -1,4 +1,5 @@
 #include "switch_context_x86_64.hpp"
+//TODO(myannyax) MMX Control and Status + FPU Control
 
 .text
 //TODO(myannyax) probably another alignment needed (8?)
