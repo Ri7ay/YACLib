@@ -9,7 +9,7 @@ namespace yaclib {
 
 class Coroutine {
  public:
-  Coroutine(StackAllocator& allocator, Routine routine);
+  Coroutine(IStackAllocator& allocator, Routine routine);
 
   Coroutine(Routine routine);
 

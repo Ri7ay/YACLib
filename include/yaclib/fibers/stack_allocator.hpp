@@ -10,9 +10,11 @@ struct Allocation {
 };
 
 /**
- * Passed to coroutine constructor
+ * Passed to coroutine/fiber constructor, specifies the way in which
+ * memory for Stack is Allocated and Released
+ * \see Stack
  */
-class StackAllocator {
+class IStackAllocator {
  public:
   [[nodiscard]] virtual Allocation Allocate() const = 0;
 
@@ -22,7 +24,7 @@ class StackAllocator {
 
   virtual size_t GetMinStackSize() = 0;
 
-  virtual ~StackAllocator() = default;
+  virtual ~IStackAllocator() = default;
 };
 
 }  // namespace yaclib

@@ -6,8 +6,11 @@
 
 namespace yaclib {
 
-// probably won't work for win
-class DefaultAllocator : public StackAllocator {
+// TODO(myannyax) won't work for win
+/**
+ * Allocator used by default
+ */
+class DefaultAllocator : public IStackAllocator {
  public:
   [[nodiscard]] Allocation Allocate() const override;
 

@@ -11,7 +11,7 @@ list(APPEND YACLIB_INCLUDES
 list(APPEND YACLIB_HEADERS
   # TODO(myannyax): pick based on a system
   ${CMAKE_CURRENT_SOURCE_DIR}/context/asm/switch_context_x86_64.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/context/asm/setup_stack_x64.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/context/setup_stack_x64.hpp
   )
 
 SET(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")

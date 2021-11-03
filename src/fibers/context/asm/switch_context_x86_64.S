@@ -1,6 +1,11 @@
 #include "switch_context_x86_64.hpp"
 //TODO(myannyax) MMX Control and Status + FPU Control
 
+// TODO(MBkkt/myannyax)
+//  Check how the order of the registers affects the performance.
+//  And also which register is better to use for the temporary value.
+//  Also check how best to change the stack.
+
 .text
 //TODO(myannyax) probably another alignment needed (8?)
 .align 4
@@ -32,7 +37,15 @@ YACLIB_FUNC_NAME(yaclib_switch_context):
 
     movq        (YACLIB_RSP_INDEX * 8)(%rsi), %rsp
     movq        (YACLIB_RIP_INDEX * 8)(%rsi), %rcx
-    // for trampoline
-    movq        (YACLIB_RDI_INDEX * 8)(%rsi), %rdi
-    movq        (YACLIB_RSI_INDEX * 8)(%rsi), %rsi
     jmp         *%rcx
+
+
+// TODO(MBkkt) Maybe it could be done better
+.align 4
+.globl YACLIB_FUNC_NAME(yaclib_trampoline)
+YACLIB_FUNC_NAME(yaclib_trampoline):
+   pushq        %rbp
+   movq         %rsp, %rbp
+   movq         16(%rbp), %rax
+   movq         8(%rbp), %rdi
+   call         *%rax

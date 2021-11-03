@@ -11,8 +11,8 @@ namespace yaclib {
 
 using Routine = yaclib::util::IFuncPtr;
 
-/***
- * base coroutine class
+/**
+ * Base coroutine class
  */
 class CoroutineBase {
  public:

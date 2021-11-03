@@ -6,10 +6,12 @@
 #include <cstddef>
 
 namespace yaclib {
-
+/**
+ * Manages stack memory
+ */
 class Stack {
  public:
-  Stack(Allocation allocation, StackAllocator& allocator) : _allocation(allocation), _allocator(allocator) {
+  explicit Stack(IStackAllocator& allocator) : _allocation(allocator.Allocate()), _allocator(allocator) {
   }
 
   Stack(Stack&& that) = default;
@@ -28,7 +30,7 @@ class Stack {
     return _allocation;
   }
 
-  [[nodiscard]] StackAllocator& GetAllocator() const {
+  [[nodiscard]] IStackAllocator& GetAllocator() const {
     return _allocator;
   }
 
@@ -46,7 +48,7 @@ class Stack {
 
  private:
   Allocation _allocation;
-  StackAllocator& _allocator;
+  IStackAllocator& _allocator;
 };
 
 }  // namespace yaclib

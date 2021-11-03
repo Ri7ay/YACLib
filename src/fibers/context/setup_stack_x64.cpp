@@ -1,29 +1,23 @@
-#include "fibers/context/asm/setup_stack_x64.hpp"
+#include "setup_stack_x64.hpp"
 
 #include "asm/switch_context_x86_64.hpp"
 
-#include <cstdint>
-
 namespace yaclib {
 
-static void MachineContextTrampoline(void* arg1, void* arg2) {
-  auto trampoline = (Trampoline)arg1;
-  trampoline(arg2);
-}
+extern "C" void yaclib_trampoline();
 
 static const int kAlignment = 16;
 
-const size_t kYaclibContextSize = (YACLIB_RIP_INDEX + 1) * sizeof(void*);
+const size_t kAsmContextSize = (YACLIB_RIP_INDEX + 1) * sizeof(void*);
 
 void SetupStack(StackView stack, Trampoline trampoline, void* arg, void** context) {
-  size_t shift = (size_t)(stack.Back() - (sizeof(uintptr_t))) % kAlignment;
-  char* top = stack.Back() - shift;
+  stack.Align(kAlignment);
 
-  context[YACLIB_RSP_INDEX] = top;
-  context[YACLIB_RDI_INDEX] = (void*)trampoline;
-  context[YACLIB_RSI_INDEX] = arg;
+  stack.Push((void*)trampoline);
+  stack.Push(arg);
 
-  context[YACLIB_RIP_INDEX] = (void*)MachineContextTrampoline;
+  context[YACLIB_RSP_INDEX] = stack.Back();
+  context[YACLIB_RIP_INDEX] = (void*)(yaclib_trampoline);
 }
 
 }  // namespace yaclib

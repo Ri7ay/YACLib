@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace yaclib {
 
@@ -22,6 +23,16 @@ class StackView {
 
   [[nodiscard]] char* Begin() const noexcept {
     return _sp;
+  }
+
+  void Align(size_t alignment) noexcept {
+    size_t shift = (size_t)(Back() - (sizeof(uintptr_t))) % alignment;
+    _size -= shift;
+  }
+
+  void Push(void* data) noexcept {
+    _size -= sizeof(void*);
+    *(void**)Back() = data;
   }
 
   [[nodiscard]] char* End() const noexcept {

@@ -4,8 +4,8 @@ namespace yaclib {
 
 static thread_local Coroutine* current = nullptr;
 
-Coroutine::Coroutine(StackAllocator& allocator, Routine routine)
-    : _stack(allocator.Allocate(), allocator), _impl(_stack.View(), std::move(routine)) {
+Coroutine::Coroutine(IStackAllocator& allocator, Routine routine)
+    : _stack(allocator), _impl(_stack.View(), std::move(routine)) {
 }
 
 Coroutine::Coroutine(Routine routine) : Coroutine(default_allocator_instance, std::move(routine)) {
