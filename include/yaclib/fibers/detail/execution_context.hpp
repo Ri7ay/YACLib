@@ -1,28 +1,25 @@
 #pragma once
 
-#include "machine_context.hpp"
 #include "yaclib/fibers/stack_view.hpp"
 
 #include <algorithm>
 
 namespace yaclib {
 
+using Trampoline = void (*)(void* arg);
+
 class ExecutionContext {
  public:
-  ExecutionContext() = default;
+  ExecutionContext();
 
   void Setup(StackView stack, Trampoline trampoline, void* arg);
 
-  MachineContext& GetMachineContext() {
-    return _machine_context;
-  };
+  void SwitchTo(ExecutionContext& other);
 
-  void SwitchTo(ExecutionContext& other) {
-    _machine_context.SwitchTo(other.GetMachineContext());
-  }
+  ~ExecutionContext();
 
  private:
-  MachineContext _machine_context;
+  void** _context;
 };
 
 }  // namespace yaclib

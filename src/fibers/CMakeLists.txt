@@ -6,7 +6,6 @@ list(APPEND YACLIB_INCLUDES
   ${YACLIB_INCLUDE_DIR}/fibers/stack_view.hpp
   ${YACLIB_INCLUDE_DIR}/fibers/default_allocator.hpp
   ${YACLIB_INCLUDE_DIR}/fibers/detail/execution_context.hpp
-  ${YACLIB_INCLUDE_DIR}/fibers/detail/machine_context.hpp
   )
 
 list(APPEND YACLIB_HEADERS
@@ -21,7 +20,6 @@ list(APPEND YACLIB_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/coroutine_base.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/coroutine.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/context/execution_context.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/context/machine_context.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/context/default_allocator.cpp
   # TODO(myannyax): pick based on a system
   ${CMAKE_CURRENT_SOURCE_DIR}/context/setup_stack_x64.cpp

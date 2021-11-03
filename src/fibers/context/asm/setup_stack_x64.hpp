@@ -1,6 +1,6 @@
 #pragma once
 
-#include "yaclib/fibers/detail/machine_context.hpp"
+#include <yaclib/fibers/detail/execution_context.hpp>
 #include "yaclib/fibers/stack_view.hpp"
 
 namespace yaclib {
