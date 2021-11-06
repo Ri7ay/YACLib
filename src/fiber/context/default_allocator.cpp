@@ -1,4 +1,4 @@
-#include <yaclib/fibers/default_allocator.hpp>
+#include <yaclib/fiber/default_allocator.hpp>
 
 #include <sys/mman.h>
 

@@ -1,4 +1,4 @@
-#include <yaclib/fibers/coroutine.hpp>
+#include <yaclib/fiber/coroutine.hpp>
 #include <yaclib/util/func.hpp>
 
 #include <thread>
@@ -11,7 +11,7 @@ auto MakeMyFunc(Func&& f) {
       std::forward<Func>(f)};
 }
 
-TEST(fibers, basic) {
+TEST(fiber, basic) {
   std::string test;
   auto test_task = MakeMyFunc([&] {
     for (int i = 0; i < 10; i++) {
@@ -28,7 +28,7 @@ TEST(fibers, basic) {
   EXPECT_EQ(test, "!0!8!16!24!32!40!48!56!64!72!");
 }
 
-TEST(fibers, basic2) {
+TEST(fiber, basic2) {
   std::string test;
   auto test_task1 = MakeMyFunc([&] {
     test.append("1");
@@ -53,7 +53,7 @@ TEST(fibers, basic2) {
   EXPECT_EQ(test, "1234");
 }
 
-TEST(fibers, basic3) {
+TEST(fiber, basic3) {
   std::string test;
   auto test_task = MakeMyFunc([&test]() {
     test.append("1");
@@ -95,7 +95,7 @@ static int TestFunctionWith2Args(const int* rsi, const int* rdi) {
   return *rsi + *rdi;
 }
 
-TEST(coroutine, basic4) {
+TEST(fiber, basic4) {
   int rsi = 1;
   int rdi = 2;
   int sum = TestFunctionWith2Args(&rsi, &rdi);

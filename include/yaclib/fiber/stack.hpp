@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yaclib/fibers/stack_allocator.hpp>
-#include <yaclib/fibers/stack_view.hpp>
+#include <yaclib/fiber/stack_allocator.hpp>
+#include <yaclib/fiber/stack_view.hpp>
 
 #include <cstddef>
 

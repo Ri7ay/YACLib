@@ -1,11 +1,11 @@
 list(APPEND YACLIB_INCLUDES
-  ${YACLIB_INCLUDE_DIR}/fibers/coroutine.hpp
-  ${YACLIB_INCLUDE_DIR}/fibers/coroutine_base.hpp
-  ${YACLIB_INCLUDE_DIR}/fibers/stack.hpp
-  ${YACLIB_INCLUDE_DIR}/fibers/stack_allocator.hpp
-  ${YACLIB_INCLUDE_DIR}/fibers/stack_view.hpp
-  ${YACLIB_INCLUDE_DIR}/fibers/default_allocator.hpp
-  ${YACLIB_INCLUDE_DIR}/fibers/detail/execution_context.hpp
+  ${YACLIB_INCLUDE_DIR}/fiber/coroutine.hpp
+  ${YACLIB_INCLUDE_DIR}/fiber/coroutine_base.hpp
+  ${YACLIB_INCLUDE_DIR}/fiber/stack.hpp
+  ${YACLIB_INCLUDE_DIR}/fiber/stack_allocator.hpp
+  ${YACLIB_INCLUDE_DIR}/fiber/stack_view.hpp
+  ${YACLIB_INCLUDE_DIR}/fiber/default_allocator.hpp
+  ${YACLIB_INCLUDE_DIR}/fiber/detail/execution_context.hpp
   )
 
 list(APPEND YACLIB_HEADERS

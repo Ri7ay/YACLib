@@ -26,7 +26,7 @@ add_subdirectory(executor)
 add_subdirectory(util)
 
 if (YACLIB_FIBER)
-  add_subdirectory(fibers)
+  add_subdirectory(fiber)
 endif ()
 
 add_library(

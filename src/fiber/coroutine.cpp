@@ -1,4 +1,4 @@
-#include "yaclib/fibers/coroutine.hpp"
+#include "yaclib/fiber/coroutine.hpp"
 
 namespace yaclib {
 
