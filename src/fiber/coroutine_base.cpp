@@ -2,8 +2,8 @@
 
 namespace yaclib {
 
-void CoroutineBase::operator()() {
-  Resume();
+CoroutineBase::CoroutineBase(const StackView& stack_view, Routine routine) : _routine(std::move(routine)) {
+  _context.Setup(stack_view, Trampoline, this);
 }
 
 void CoroutineBase::Resume() {

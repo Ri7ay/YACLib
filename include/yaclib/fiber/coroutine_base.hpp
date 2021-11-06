@@ -15,11 +15,7 @@ using Routine = yaclib::util::IFuncPtr;
  */
 class CoroutineBase {
  public:
-  CoroutineBase(const StackView& stack_view, Routine routine) : _routine(std::move(routine)) {
-    _context.Setup(stack_view, Trampoline, this);
-  }
-
-  void operator()();
+  CoroutineBase(const StackView& stack_view, Routine routine);
 
   void Resume();
 
@@ -35,6 +31,7 @@ class CoroutineBase {
   ExecutionContext _context{};
   ExecutionContext _caller_context{};
   Routine _routine;
+  // TODO(myannyax) union _completed and _exception
   bool _completed = false;
   std::exception_ptr _exception;
 };

@@ -63,6 +63,6 @@ size_t DefaultAllocator::GetMinStackSize() {
   return (_stack_size_pages - 1) * kPageSize;
 }
 
-DefaultAllocator default_allocator_instance;
+DefaultAllocator gDefaultAllocator;
 
 }  // namespace yaclib

@@ -6,9 +6,9 @@ namespace yaclib {
 
 extern "C" void yaclib_trampoline();
 
-static const int kAlignment = 16;
+static inline constexpr int kAlignment = 16;
 
-const size_t kAsmContextSize = (YACLIB_RIP_INDEX + 1) * sizeof(void*);
+constexpr size_t kAsmContextSize = (YACLIB_RIP_INDEX + 1) * sizeof(void*);
 
 void SetupStack(StackView stack, Trampoline trampoline, void* arg, void** context) {
   stack.Align(kAlignment);

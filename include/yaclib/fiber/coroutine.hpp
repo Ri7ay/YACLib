@@ -11,15 +11,15 @@ class Coroutine {
  public:
   Coroutine(IStackAllocator& allocator, Routine routine);
 
-  Coroutine(Routine routine);
+  explicit Coroutine(Routine routine);
 
   void operator()();
 
   void Resume();
 
-  bool IsCompleted() const;
+  [[nodiscard]] bool IsCompleted() const;
 
-  ~Coroutine() = default;
+  ~Coroutine();
 
   static void Yield();
 

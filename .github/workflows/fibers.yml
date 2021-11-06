@@ -157,18 +157,18 @@ jobs:
             cmake_args: '-DYACLIB_DEFINITIONS=/DYACLIB_CI_SLOWDOWN=10',
           }
 
-          - {
-            os: windows-latest,
-            cc: cl, cxx: cl,
-            cxx_standard: 20,
-            cmake_args: '',
-          }
-          - {
-            os: windows-latest,
-            cc: cl, cxx: cl,
-            cxx_standard: 17,
-            cmake_args: '',
-          }
+#          - {
+#            os: windows-latest,
+#            cc: cl, cxx: cl,
+#            cxx_standard: 20,
+#            cmake_args: '',
+#          }
+#          - {
+#            os: windows-latest,
+#            cc: cl, cxx: cl,
+#            cxx_standard: 17,
+#            cmake_args: '',
+#          }
 
     steps:
       - uses: actions/checkout@v2

@@ -8,7 +8,7 @@ Coroutine::Coroutine(IStackAllocator& allocator, Routine routine)
     : _stack(allocator), _impl(_stack.View(), std::move(routine)) {
 }
 
-Coroutine::Coroutine(Routine routine) : Coroutine(default_allocator_instance, std::move(routine)) {
+Coroutine::Coroutine(Routine routine) : Coroutine(gDefaultAllocator, std::move(routine)) {
 }
 
 void Coroutine::operator()() {
@@ -30,5 +30,7 @@ void Coroutine::Yield() {
 bool Coroutine::IsCompleted() const {
   return _impl.IsCompleted();
 }
+
+Coroutine::~Coroutine() = default;
 
 }  // namespace yaclib

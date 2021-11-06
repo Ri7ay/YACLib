@@ -10,21 +10,21 @@ namespace yaclib {
 /**
  * Allocator used by default
  */
-class DefaultAllocator : public IStackAllocator {
+class DefaultAllocator final : public IStackAllocator {
  public:
-  [[nodiscard]] Allocation Allocate() const override;
+  [[nodiscard]] Allocation Allocate() const override final;
 
-  void Release(Allocation allocation) override;
+  void Release(Allocation allocation) override final;
 
-  void SetMinStackSize(size_t bytes) override;
+  void SetMinStackSize(size_t bytes) override final;
 
-  size_t GetMinStackSize() override;
+  size_t GetMinStackSize() override final;
 
  private:
   size_t _stack_size_pages = 2;
   std::vector<Allocation> _pool;
 };
 
-extern DefaultAllocator default_allocator_instance;
+extern DefaultAllocator gDefaultAllocator;
 
 }  // namespace yaclib
