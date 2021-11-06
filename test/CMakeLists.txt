@@ -56,7 +56,7 @@ set(YACLIB_UNITS
   unit/executor/thread_factory
   unit/executor/thread_pool
   unit/executor/serial
-  unit/coroutines/basic
+  unit/fibers/basic
   )
 
 if (YACLIB_BUILD_EXAMPLES)

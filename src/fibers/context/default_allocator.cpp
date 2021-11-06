@@ -19,6 +19,7 @@ static void ProtectPages(char* start, size_t offset, size_t count) {
 }
 
 Allocation DefaultAllocator::Allocate() const {
+  // TODO(myannyax) get from _pool (and make it not just vector)
   size_t size = PagesToBytes(_stack_size_pages);
 
   void* start = mmap(/*addr=*/nullptr, /*length=*/size,
