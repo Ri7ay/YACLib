@@ -157,6 +157,7 @@ jobs:
             cmake_args: '-DYACLIB_DEFINITIONS=/DYACLIB_CI_SLOWDOWN=10',
           }
 
+# TODO(myannyax) support win
 #          - {
 #            os: windows-latest,
 #            cc: cl, cxx: cl,

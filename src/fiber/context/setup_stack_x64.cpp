@@ -1,14 +1,12 @@
-#include "setup_stack_x64.hpp"
-
 #include "asm/switch_context_x86_64.hpp"
 
-namespace yaclib {
+#include <yaclib/fiber/detail/setup_stack_x64.hpp>
 
 extern "C" void yaclib_trampoline();
 
-static inline constexpr int kAlignment = 16;
+namespace yaclib {
 
-constexpr size_t kAsmContextSize = (YACLIB_RIP_INDEX + 1) * sizeof(void*);
+static inline constexpr int kAlignment = 16;
 
 void SetupStack(StackView stack, Trampoline trampoline, void* arg, void** context) {
   stack.Align(kAlignment);

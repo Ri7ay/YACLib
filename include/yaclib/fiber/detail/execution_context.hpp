@@ -1,25 +1,20 @@
 #pragma once
 
+#include <yaclib/fiber/detail/setup_stack_x64.hpp>
 #include <yaclib/fiber/stack_view.hpp>
 
 #include <algorithm>
 
 namespace yaclib {
 
-using Trampoline = void (*)(void* arg);
-
 class ExecutionContext {
  public:
-  ExecutionContext();
-
   void Setup(StackView stack, Trampoline trampoline, void* arg);
 
   void SwitchTo(ExecutionContext& other);
 
-  ~ExecutionContext();
-
  private:
-  void** _context;
+  void* _context[kAsmContextSize];
 };
 
 }  // namespace yaclib
