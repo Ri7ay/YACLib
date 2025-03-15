@@ -2,14 +2,22 @@
  * \example when_any.cpp
  * Simple WhenAny examples
  */
-#include <yaclib/algo/when_any.hpp>
 #include <yaclib/async/run.hpp>
-#include <yaclib/executor/thread_pool.hpp>
+#include <yaclib/async/when_any.hpp>
+#include <yaclib/runtime/fair_thread_pool.hpp>
+#include <yaclib/util/intrusive_ptr.hpp>
+#include <yaclib/util/result.hpp>
 
 #include <chrono>
-#include <thread>
+#include <iostream>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
+
+namespace test {
+namespace {
 
 using namespace std::chrono_literals;
 
@@ -17,13 +25,13 @@ using namespace std::chrono_literals;
 // std::vector<Future<T>> -> Future<T>
 
 TEST(Example, WhenAny) {
-  auto tp = yaclib::MakeThreadPool(4);
+  yaclib::FairThreadPool tp{4};
 
-  std::vector<yaclib::Future<int>> futs;
+  std::vector<yaclib::FutureOn<int>> futs;
 
   // Run sync computations in parallel
 
-  for (size_t i = 0; i < 5; ++i) {
+  for (int i = 0; i < 5; ++i) {
     futs.push_back(yaclib::Run(tp, [i]() -> int {
       return i;
     }));
@@ -32,11 +40,14 @@ TEST(Example, WhenAny) {
   // Parallel composition
   // Any combinator: std::vector<Future<T>> -> Future<T>
   // Non-blocking!
-  yaclib::Future<int> any = yaclib::WhenAny(futs.begin(), futs.size());
+  yaclib::Future<int> any = WhenAny(futs.begin(), futs.size());
 
   // First value
   std::cout << "Any value: " << std::move(any).Get().Ok() << std::endl;
 
-  tp->Stop();
-  tp->Wait();
+  tp.Stop();
+  tp.Wait();
 }
+
+}  // namespace
+}  // namespace test

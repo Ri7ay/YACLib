@@ -2,6 +2,8 @@
 
 namespace yaclib {
 
-template class Future<void>;
+template class FutureBase<void, StopError>;
+template class Future<>;
+template class FutureOn<>;
 
 }  // namespace yaclib

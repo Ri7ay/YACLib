@@ -1,51 +1,46 @@
-#include <util/intrusive_list.hpp>
+#include <yaclib/log.hpp>
+#include <yaclib/util/detail/intrusive_list.hpp>
 
-#include <yaclib/executor/task.hpp>
-#include <yaclib/executor/thread_factory.hpp>
+#include <utility>
 
-namespace yaclib::util {
+namespace yaclib::detail {
 
-template <typename T>
-T* List<T>::PopBack() noexcept {
-  if (IsEmpty()) {
-    return nullptr;
+List::List(List&& other) noexcept {
+  if (this == &other || other.Empty()) {
+    return;  // TODO(MBkkt) Remove if
   }
-  auto* back = _head._prev;
-  back->Unlink();
-  return AsItem(back);
+  _head.next = std::exchange(other._head.next, nullptr);
+  _tail = std::exchange(other._tail, &other._head);
 }
 
-template <typename T>
-T* List<T>::PopFront() noexcept {
-  if (IsEmpty()) {
-    return nullptr;
+void List::PushFront(Node& node) noexcept {
+  if (Empty()) {
+    _tail = &node;
   }
-  auto* front = _head._next;
-  front->Unlink();
-  return AsItem(front);
+  node.next = _head.next;
+  _head.next = &node;
 }
 
-template <typename T>
-void List<T>::Append(List& other) noexcept {
-  if (other.IsEmpty()) {
-    return;
-  }
-  auto* other_front = other._head._next;
-  auto* other_back = other._head._prev;
-
-  // insert to end
-  other_back->_next = &_head;
-  other_front->_prev = _head._prev;
-
-  _head._prev->_next = other_front;
-  _head._prev = other_back;
-
-  // clear other
-  other._head._next = &other._head;
-  other._head._prev = &other._head;
+void List::PushBack(Node& node) noexcept {
+  // for circular should be node.next = _tail->next;
+  node.next = nullptr;
+  _tail->next = &node;
+  _tail = &node;
 }
 
-template class List<ITask>;
-template class List<IThread>;
+bool List::Empty() const noexcept {
+  YACLIB_DEBUG((_head.next == nullptr) != (_tail == &_head), "List::Empty invariant is failed");
+  return _head.next == nullptr;  // valid only for linear
+}
 
-}  // namespace yaclib::util
+Node& List::PopFront() noexcept {
+  YACLIB_ASSERT(!Empty());
+  auto* node = _head.next;
+  _head.next = node->next;
+  if (_head.next == nullptr) {
+    _tail = &_head;
+  }
+  return *node;
+}
+
+}  // namespace yaclib::detail

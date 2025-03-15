@@ -1,20 +1,14 @@
 #pragma once
 
-#include <yaclib/algo/wait.hpp>
-#include <yaclib/algo/wait_for.hpp>
-#include <yaclib/algo/wait_group.hpp>
-#include <yaclib/algo/wait_until.hpp>
-#include <yaclib/async/detail/result_core.hpp>
-#include <yaclib/executor/executor.hpp>
+#include <yaclib/algo/detail/core.hpp>
+#include <yaclib/algo/detail/result_core.hpp>
+#include <yaclib/async/wait.hpp>
+#include <yaclib/exe/executor.hpp>
+#include <yaclib/fwd.hpp>
+#include <yaclib/util/helper.hpp>
 #include <yaclib/util/type_traits.hpp>
 
 namespace yaclib {
-namespace detail {
-
-template <typename Value>
-using FutureCorePtr = util::Ptr<ResultCore<Value>>;
-
-}  // namespace detail
 
 /**
  * Provides a mechanism to access the result of async operations
@@ -22,50 +16,58 @@ using FutureCorePtr = util::Ptr<ResultCore<Value>>;
  * Future and \ref Promise are like a Single Producer/Single Consumer one-shot one-element channel.
  * Use the \ref Promise to fulfill the \ref Future.
  */
-template <typename T>
-class Future final {
+template <typename V, typename E>
+class FutureBase {
  public:
-  static_assert(!std::is_reference_v<T>,
-                "Future cannot be instantiated with reference, "
-                "you can use std::reference_wrapper or pointer");
-  static_assert(!std::is_volatile_v<T> && !std::is_const_v<T>,
-                "Future cannot be instantiated with cv qualifiers, because it's unnecessary");
-  static_assert(!util::IsFutureV<T>, "Future cannot be instantiated with Future");
-  static_assert(!util::IsResultV<T>, "Future cannot be instantiated with Result");
-  static_assert(!std::is_same_v<T, std::error_code>, "Future cannot be instantiated with std::error_code");
-  static_assert(!std::is_same_v<T, std::exception_ptr>, "Future cannot be instantiated with std::exception_ptr");
+  static_assert(Check<V>(), "V should be valid");
+  static_assert(Check<E>(), "E should be valid");
+  static_assert(!std::is_same_v<V, E>, "Future cannot be instantiated with same V and E, because it's ambiguous");
 
-  Future(Future&& other) noexcept = default;
-  Future& operator=(Future&& other) noexcept = default;
+  FutureBase(const FutureBase&) = delete;
+  FutureBase& operator=(const FutureBase&) = delete;
 
-  Future(const Future&) = delete;
-  Future& operator=(const Future&) = delete;
+  FutureBase(FutureBase&& other) noexcept = default;
+  FutureBase& operator=(FutureBase&& other) noexcept = default;
 
   /**
    * The default constructor creates not a \ref Valid Future
    *
-   * Needed only for usability, e.g. instead of std::optional<util::Future<T>> in containers.
+   * Needed only for usability, e.g. instead of std::optional<Future<T>> in containers.
    */
-  Future() = default;
+  FutureBase() noexcept = default;
 
   /**
    * If Future is \ref Valid then call \ref Stop
    */
-  ~Future();
+  ~FutureBase() noexcept {
+    if (Valid()) {
+      std::move(*this).Detach();
+    }
+  }
 
   /**
    * Check if this \ref Future has \ref Promise
    *
    * \return false if this \ref Future is default-constructed or moved to, otherwise true
    */
-  [[nodiscard]] bool Valid() const& noexcept;
+  [[nodiscard]] bool Valid() const& noexcept {
+    return _core != nullptr;
+  }
 
   /**
    * Check that \ref Result that corresponds to this \ref Future is computed
    *
-   * \return false if the \Result of this \ref Future is not computed yet, otherwise true
+   * \return false if the \ref Result of this \ref Future is not computed yet, otherwise true
    */
-  [[nodiscard]] bool Ready() const& noexcept;
+  [[nodiscard]] bool Ready() const& noexcept {
+    YACLIB_ASSERT(Valid());
+    return !_core->Empty();
+  }
+
+  void Get() & = delete;
+  void Get() const&& = delete;
+  void Touch() & = delete;
+  void Touch() const&& = delete;
 
   /**
    * Return copy of \ref Result from \ref Future
@@ -74,7 +76,12 @@ class Future final {
    * \note The behavior is undefined if \ref Valid is false before the call to this function.
    * \return \ref Result stored in the shared state
    */
-  [[nodiscard]] const util::Result<T>* Get() const&;
+  [[nodiscard]] const Result<V, E>* Get() const& noexcept {
+    if (Ready()) {  // TODO(MBkkt) Maybe we want likely
+      return &_core->Get();
+    }
+    return nullptr;
+  }
 
   /**
    * Wait until \def Ready is true and move \ref Result from Future
@@ -82,101 +89,205 @@ class Future final {
    * \note The behavior is undefined if \ref Valid is false before the call to this function.
    * \return The \ref Result that Future received
    */
-  [[nodiscard]] util::Result<T> Get() &&;
-
-  util::Result<T> Get() const&& = delete;
-  util::Result<T> Get() & = delete;
+  [[nodiscard]] Result<V, E> Get() && noexcept {
+    Wait(*this);
+    auto core = std::exchange(_core, nullptr);
+    return std::move(core->Get());
+  }
 
   /**
-   * Stop pipeline before current step, if possible. Used in destructor
+   * Assume \def Ready is true and return copy reference to \ref Result from Future
+   *
+   * Assume Ready is true. This method is NOT thread-safe and can be called multiple
+   * \note The behavior is undefined if \ref Valid or Ready is false before the call to this function.
+   * \return The \ref Result stored in the shared state
    */
-  void Stop() &&;
+  [[nodiscard]] const Result<V, E>& Touch() const& noexcept {
+    YACLIB_ASSERT(Ready());
+    return _core->Get();
+  }
+
+  /**
+   * Assume \def Ready is true and move \ref Result from Future
+   *
+   * \note The behavior is undefined if \ref Valid or Ready is false before the call to this function.
+   * \return The \ref Result that Future received
+   */
+  [[nodiscard]] Result<V, E> Touch() && noexcept {
+    YACLIB_ASSERT(Ready());
+    auto core = std::exchange(_core, nullptr);
+    return std::move(core->Get());
+  }
+
+  /**
+   * Attach the continuation func to *this
+   *
+   * The func will be executed on the specified executor.
+   * \note The behavior is undefined if \ref Valid is false before the call to this function.
+   * \param e Executor which will \ref Execute the continuation
+   * \param f A continuation to be attached
+   * \return New \ref FutureOn object associated with the func result
+   */
+  template <typename Func>
+  [[nodiscard]] /*FutureOn*/ auto Then(IExecutor& e, Func&& f) && {
+    YACLIB_WARN(e.Tag() == IExecutor::Type::Inline,
+                "better way is use ThenInline(...) instead of Then(MakeInline(), ...)");
+    return detail::SetCallback<detail::CoreType::Then, detail::CallbackType::On>(_core, &e, std::forward<Func>(f));
+  }
 
   /**
    * Disable calling \ref Stop in destructor
    */
-  void Detach() &&;
+  void Detach() && noexcept {
+    auto* core = _core.Release();
+    // TODO(MBkkt) if use SetCallback it will single virtual call instead of two
+    core->CallInline(detail::MakeDrop());
+  }
 
   /**
-   * Attach the continuation functor to *this
+   * Attach the final continuation func to *this and \ref Detach *this
    *
+   * The func will be executed on \ref Inline executor.
    * \note The behavior is undefined if \ref Valid is false before the call to this function.
-   * \param functor A continuation to be attached
-   * \return New \ref Future object associated with the functor result
+   * \param f A continuation to be attached
    */
-  template <typename Functor>
-  [[nodiscard]] auto Then(Functor&& functor) &&;
+  template <typename Func>
+  void DetachInline(Func&& f) && {
+    detail::SetCallback<detail::CoreType::Detach, detail::CallbackType::Inline>(_core, nullptr, std::forward<Func>(f));
+  }
 
   /**
-   * Attach the continuation functor to *this
+   * Attach the final continuation func to *this and \ref Detach *this
    *
-   * The functor will be executed via the specified executor.
+   * The func will be executed on the specified executor.
    * \note The behavior is undefined if \ref Valid is false before the call to this function.
-   * \param executor Executor which will \ref Execute the continuation
-   * \param functor A continuation to be attached
-   * \return New \ref Future object associated with the functor result
+   * \param e Executor which will \ref Execute the continuation
+   * \param f A continuation to be attached
    */
-  template <typename Functor>
-  [[nodiscard]] auto Then(IExecutorPtr executor, Functor&& functor) &&;
+  template <typename Func>
+  void Detach(IExecutor& e, Func&& f) && {
+    YACLIB_WARN(e.Tag() == IExecutor::Type::Inline,
+                "better way is use DetachInline(...) instead of Detach(MakeInline(), ...)");
+    detail::SetCallback<detail::CoreType::Detach, detail::CallbackType::On>(_core, &e, std::forward<Func>(f));
+  }
 
   /**
-   * Attach the final continuation functor to *this
+   * Method that get internal Core state
    *
-   * \note Functor must return void type.
-   * \param functor A continuation to be attached
+   * \return internal Core state ptr
    */
-  template <typename Functor>
-  void Subscribe(Functor&& functor) &&;
+  [[nodiscard]] detail::ResultCorePtr<V, E>& GetCore() noexcept {
+    return _core;
+  }
 
-  /**
-   * Attach the final functor to *this
-   *
-   * The functor will be executed via the specified executor.
-   * \note The behavior is undefined if \ref Valid is false before the call to this function.
-   * \param executor Executor which will \ref Execute the continuation
-   * \param functor A continuation to be attached
-   */
-  template <typename Functor>
-  void Subscribe(IExecutorPtr executor, Functor&& functor) &&;
+ protected:
+  explicit FutureBase(detail::ResultCorePtr<V, E> core) noexcept : _core{std::move(core)} {
+  }
 
-  /**
-   * Detail constructor
-   */
-  explicit Future(detail::FutureCorePtr<T> core);
-
-  /**
-   * Detail method
-   */
-  Future& Via(IExecutorPtr executor) &;
-
- private:
-  template <typename... Fs>
-  friend void Wait(Fs&&... futures);
-
-  template <typename Rep, typename Period, typename... Fs>
-  friend bool WaitFor(const std::chrono::duration<Rep, Period>& timeout_duration, Fs&&... fs);
-
-  template <typename Clock, typename Duration, typename... Fs>
-  friend bool WaitUntil(const std::chrono::time_point<Clock, Duration>& timeout_time, Fs&&... fs);
-
-  friend class WaitGroup;
-
-  detail::FutureCorePtr<T> _core;
+  detail::ResultCorePtr<V, E> _core;
 };
 
-extern template class Future<void>;
+extern template class FutureBase<void, StopError>;
+
+/**
+ * Provides a mechanism to access the result of async operations
+ *
+ * Future and \ref Promise are like a Single Producer/Single Consumer one-shot one-element channel.
+ * Use the \ref Promise to fulfill the \ref Future.
+ */
+template <typename V, typename E>
+class Future final : public FutureBase<V, E> {
+  using Base = FutureBase<V, E>;
+
+ public:
+  using Base::Base;
+
+  Future(detail::ResultCorePtr<V, E> core) noexcept : Base{std::move(core)} {
+  }
+
+  /**
+   * Attach the continuation func to *this
+   *
+   * The func will be executed on \ref Inline executor.
+   * \note The behavior is undefined if \ref Valid is false before the call to this function.
+   * \param f A continuation to be attached
+   * \return New \ref Future object associated with the func result
+   */
+  template <typename Func>
+  [[nodiscard]] /*Future*/ auto ThenInline(Func&& f) && {
+    return detail::SetCallback<detail::CoreType::Then, detail::CallbackType::Inline>(this->_core, nullptr,
+                                                                                     std::forward<Func>(f));
+  }
+};
+
+extern template class Future<>;
+
+/**
+ * Provides a mechanism to access the result of async operations
+ *
+ * Future and \ref Promise are like a Single Producer/Single Consumer one-shot one-element channel.
+ * Use the \ref Promise to fulfill the \ref Future.
+ */
+template <typename V, typename E>
+class FutureOn final : public FutureBase<V, E> {
+  using Base = FutureBase<V, E>;
+
+ public:
+  using Base::Base;
+  using Base::Detach;
+  using Base::Then;
+
+  FutureOn(detail::ResultCorePtr<V, E> core) noexcept : Base{std::move(core)} {
+  }
+
+  /**
+   * Specify executor for continuation.
+   * Make FutureOn -- Future with executor
+   */
+  [[nodiscard]] Future<V, E> On(std::nullptr_t) && noexcept {
+    return {std::move(this->_core)};
+  }
+
+  /**
+   * Attach the continuation func to *this
+   *
+   * The func will be executed on \ref Inline executor.
+   * \note The behavior is undefined if \ref Valid is false before the call to this function.
+   * \param f A continuation to be attached
+   * \return New \ref FutureOn object associated with the func result
+   */
+  template <typename Func>
+  [[nodiscard]] /*FutureOn*/ auto ThenInline(Func&& f) && {
+    return detail::SetCallback<detail::CoreType::Then, detail::CallbackType::InlineOn>(this->_core, nullptr,
+                                                                                       std::forward<Func>(f));
+  }
+
+  /**
+   * Attach the continuation func to *this
+   *
+   * \note The behavior is undefined if \ref Valid is false before the call to this function.
+   * \param f A continuation to be attached
+   * \return New \ref FutureOn object associated with the func result
+   */
+  template <typename Func>
+  [[nodiscard]] /*FutureOn*/ auto Then(Func&& f) && {
+    return detail::SetCallback<detail::CoreType::Then, detail::CallbackType::On>(this->_core, nullptr,
+                                                                                 std::forward<Func>(f));
+  }
+
+  /**
+   * Attach the final continuation func to *this and \ref Detach *this
+   *
+   * \note Func must return void type.
+   * \param f A continuation to be attached
+   */
+  template <typename Func>
+  void Detach(Func&& f) && {
+    detail::SetCallback<detail::CoreType::Detach, detail::CallbackType::On>(this->_core, nullptr,
+                                                                            std::forward<Func>(f));
+  }
+};
+
+extern template class FutureOn<>;
 
 }  // namespace yaclib
-
-#ifndef YACLIB_ASYNC_DECL
-
-#define YACLIB_ASYNC_DECL
-#include <yaclib/async/promise.hpp>
-#undef YACLIB_ASYNC_DECL
-
-#define YACLIB_ASYNC_IMPL
-#include <yaclib/async/detail/future_impl.hpp>
-#include <yaclib/async/detail/promise_impl.hpp>
-#undef YACLIB_ASYNC_IMPL
-
-#endif

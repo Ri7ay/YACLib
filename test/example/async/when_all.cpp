@@ -2,14 +2,22 @@
  * \example when_all.cpp
  * Simple WhenAll examples
  */
-#include <yaclib/algo/when_all.hpp>
 #include <yaclib/async/run.hpp>
-#include <yaclib/executor/thread_pool.hpp>
+#include <yaclib/async/when_all.hpp>
+#include <yaclib/runtime/fair_thread_pool.hpp>
+#include <yaclib/util/intrusive_ptr.hpp>
+#include <yaclib/util/result.hpp>
 
 #include <chrono>
-#include <thread>
+#include <iostream>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
+
+namespace test {
+namespace {
 
 using namespace std::chrono_literals;
 
@@ -17,13 +25,14 @@ using namespace std::chrono_literals;
 // std::vector<Future<T>> -> Future<std::vector<T>>
 
 TEST(Example, WhenAll) {
-  auto tp = yaclib::MakeThreadPool(4);
+  yaclib::FairThreadPool tp{4};
 
-  std::vector<yaclib::Future<int>> futs;
+  std::vector<yaclib::FutureOn<int>> futs;
 
   // Run sync computations in parallel
 
-  for (size_t i = 0; i < 5; ++i) {
+  futs.reserve(5);
+  for (int i = 0; i < 5; ++i) {
     futs.push_back(yaclib::Run(tp, [i]() -> int {
       return i;
     }));
@@ -32,7 +41,7 @@ TEST(Example, WhenAll) {
   // Parallel composition
   // All combinator: std::vector<Future<T>> -> Future<std::vector<T>>
   // Non-blocking!
-  yaclib::Future<std::vector<int>> all = yaclib::WhenAll(futs.begin(), futs.size());
+  yaclib::Future<std::vector<int>> all = WhenAll(futs.begin(), futs.size());
 
   // Blocks
   std::vector<int> ints = std::move(all).Get().Ok();
@@ -42,6 +51,9 @@ TEST(Example, WhenAll) {
     std::cout << v << ", ";
   }
   std::cout << std::endl;
-  tp->Stop();
-  tp->Wait();
+  tp.Stop();
+  tp.Wait();
 }
+
+}  // namespace
+}  // namespace test

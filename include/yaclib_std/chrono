@@ -1,0 +1,8 @@
+#pragma once
+
+#include <yaclib/config.hpp>
+
+#include <chrono>
+
+#define YACLIB_FAULT_CLOCK YACLIB_FAULT
+#include <yaclib_std/detail/clock.hpp>

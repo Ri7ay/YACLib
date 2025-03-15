@@ -1,0 +1,32 @@
+name: Format
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths: [ '**.cpp', '**.hpp' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ '**.cpp', '**.hpp' ]
+
+jobs:
+  # TODO(MBkkt) Use our own script instead of github action, same as in /.githooks
+  # TODO(MBkkt) Check cmake format?
+  # TODO(MBkkt) Check markdown format?
+  # TODO(MBkkt) Add option or workflow for reformat
+
+  main:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        path:
+          - '.'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run clang-format style check
+        uses: jidicula/clang-format-action@v4.13.0
+        with:
+          clang-format-version: 17
+          check-path: ${{ matrix.path }}

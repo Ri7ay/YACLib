@@ -1,0 +1,124 @@
+name: macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths: [ '**.cpp', '**.hpp*', '**.cmake', 'include/yaclib_std/*', '**/CMakeLists.txt' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ '**.cpp', '**.hpp*', '**.cmake', 'include/yaclib_std/*', '**/CMakeLists.txt' ]
+  schedule:
+    - cron: '0 12 * * 1-5'
+
+jobs:
+  # TODO(mkornaukhov03) Maybe add CORO flag? But we test only oldest compiler them doesn't support it
+  main:
+    runs-on: 'macos-${{ matrix.os }}'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ 13, 15 ]  # 14 works same as 15
+        build_type: [ Debug, RelWithDebInfo ]
+        isPR:
+          - ${{ github.event_name == 'pull_request' }}
+        exclude:
+          - isPR: true
+            os: 13
+            build_type: RelWithDebInfo
+          - isPR: true
+            os: 15
+            build_type: RelWithDebInfo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update deps on macOS
+        run: |
+          # Install oldest compiler that possible
+          brew update
+          if [[ ${{ matrix.os }} == "13" ]]; then
+            brew install ninja llvm@14 gcc@14
+          elif [[ ${{ matrix.os }} == "15" ]]; then
+            brew install ninja llvm@19 gcc@14
+          fi
+
+      - name: Configure CMake
+        run: |
+          if [[ "${{ matrix.os }}" == "13" ]]; then
+            llvm=/usr/local/opt/llvm@14
+            cxx_compilers=("$llvm/bin/clang++" g++-14 clang++)
+            gnu_link_options="-Wl,-ld_classic"
+          elif [[ "${{ matrix.os }}" == "15" ]]; then
+            llvm=/opt/homebrew/opt/llvm@19
+            cxx_compilers=("$llvm/bin/clang++" g++-14 clang++)
+            gnu_link_options="-Wl,-ld_classic"
+          fi
+          compiler_names=(clang gnu apple_clang)
+          stdlib_names=(libcxx libstdcxx default)
+          link_options=(
+            "-L$llvm/lib;-Wl,-rpath,$llvm/lib"
+            "-stdlib=libstdc++"
+            ""
+          )
+          compile_options=(
+            "-I$llvm/include;-I$llvm/include/c++/v1/"
+            "-stdlib=libstdc++"
+            ""
+          )
+
+          for (( i=0; i<${#compiler_names[*]}; i+=1 )); do
+            for (( j=0; j<${#stdlib_names[*]}; j+=1 )); do
+              if [[ "${compiler_names[$i]}" != "clang" && "${stdlib_names[$j]}" != "default" ]]; then
+                # TODO(MBkkt) I think we should specify path to libstdcxx
+                # TODO(MBkkt) I dunno how to get GNU GCC to work with other stdlibs
+                # TODO(MBkkt) I dunno how to get AppleClang to work with other stdlibs
+                # Btw I dunno what stdlib would be using libstdcxx or apple_libcxx, just some default
+                continue
+              fi
+              link_option=${link_options[$j]}; compile_option=${compile_options[$j]}                
+              if [[ "${compiler_names[$i]}" == "clang" ]]; then
+                if [[ "${stdlib_names[$j]}" == "libstdcxx" ]]; then
+                  continue  # TODO(MBkkt) Specify path to libstdcxx
+                fi
+                if [[ "${stdlib_names[$j]}" == "default" ]]; then
+                  link_option=""; compile_option="-stdlib=libc++"
+                fi
+              fi
+              if [[ "${compiler_names[$i]}" == "gnu" ]]; then
+                link_option="${link_option};${gnu_link_options}"
+              fi
+
+              dir="build_${compiler_names[$i]}_${stdlib_names[$j]}"
+              echo $dir
+          
+              cmake -S . -B $dir                                                                                       \
+                -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}                                                            \
+                -DYACLIB_CXX_STANDARD=17                                                                               \
+                -DYACLIB_TEST=SINGLE                                                                                   \
+                -DYACLIB_FLAGS="$coroutine_option"                                                                     \
+                -DCMAKE_CXX_COMPILER=${cxx_compilers[$i]}                                                              \
+                -G"Ninja"                                                                                              \
+                -DYACLIB_LINK_OPTIONS="$link_option"                                                                   \
+                -DYACLIB_COMPILE_OPTIONS="$compile_option"                                                             \
+                -DYACLIB_LOG="DEBUG"                                                                             \
+                -DYACLIB_DEFINITIONS="YACLIB_CI_SLOWDOWN=8"
+
+            done
+          done
+
+      - name: Build
+        run: |
+          for dir in build*/; do
+            echo $dir
+            cmake --build $dir --config ${{ matrix.build_type }} --parallel
+            echo
+          done
+
+      - name: Test
+        run: |
+          for dir in build*/; do
+            cd $dir
+            ctest --output-on-failure -C ${{ matrix.build_type }} -V
+            cd ..
+          done

@@ -1,0 +1,297 @@
+name: Sanitizer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths: [ '**.cpp', '**.hpp*', '**.cmake', 'include/yaclib_std/**', '**/CMakeLists.txt' ]
+  pull_request:
+    branches: [ main ]
+    paths: [ '**.cpp', '**.hpp*', '**.cmake', 'include/yaclib_std/**', '**/CMakeLists.txt' ]
+    types: [ assigned ]
+  schedule:
+    - cron: '0 12 * * 1-5'
+
+jobs:
+  # TODO(MBkkt) Add Memory, HWASAN, DataFlow, etc?
+  # TODO(MBkkt) Maybe better merge undefined, address, leak?
+  # TODO(MBkkt) Other not google sanitizers?
+
+  main:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-24.04, ubuntu-24.04-arm, windows-2025 ]  # TODO(mbkkt) macos-15 some strange failure, probably because of issues with symmetric transfer
+        flags: [ WARN, UBSAN, ASAN, TSAN, LSAN ]
+        build_type: [ Debug, RelWithDebInfo ]
+        isPR:
+          - ${{ github.event_name == 'pull_request' }}
+        exclude:
+          # GitHub Actions provides a maximum of 5 parallel macOS machines for free.
+          # So in pr we don't run all configurations.
+          - isPR: true
+            os: macos-15
+            flags: UBSAN
+            build_type: Debug
+          - isPR: true
+            os: macos-15
+            flags: UBSAN
+            build_type: RelWithDebInfo
+          - isPR: true
+            os: macos-15
+            flags: ASAN
+            build_type: Debug
+          - isPR: true
+            os: macos-15
+            flags: ASAN
+            build_type: RelWithDebInfo
+          - isPR: true
+            os: macos-15
+            flags: TSAN
+            build_type: Debug
+          - isPR: true
+            os: macos-15
+            flags: TSAN
+            build_type: RelWithDebInfo
+          - isPR: true
+            os: macos-15
+            flags: LSAN
+            build_type: Debug
+          - isPR: true
+            os: macos-15
+            flags: LSAN
+            build_type: RelWithDebInfo
+
+          #  Doesn't build with ClanCL ASAN. Random crash on start before main() with MSVC ASAN. THANKS TO THE BEST OS.
+          - os: windows-2025
+            flags: ASAN
+            build_type: Debug
+          - os: windows-2025
+            flags: ASAN
+            build_type: RelWithDebInfo
+          # Best OS doesn't support unnecessary things like UBSAN, LSAN, TSAN.
+          # May be on best OS you can't write a program with undefined behavior or memory leak or race condition, dunno.
+          # I also have a conspiracy theory that Windows is just an unnecessary abstraction over Linux.
+          # See how well WSL works. Or how quickly they made the analog of io_uring.
+          # And who cares if the virtual machine falls? I think this explains everything.
+          - os: windows-2025
+            flags: UBSAN
+            build_type: Debug
+          - os: windows-2025
+            flags: UBSAN
+            build_type: RelWithDebInfo
+          - os: windows-2025
+            flags: LSAN
+            build_type: Debug
+          - os: windows-2025
+            flags: LSAN
+            build_type: RelWithDebInfo
+          - os: windows-2025
+            flags: TSAN
+            build_type: Debug
+          - os: windows-2025
+            flags: TSAN
+            build_type: RelWithDebInfo
+
+    env:
+      YACLIB_FAULT: 'OFF THREAD FIBER'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update deps on Linux
+        if: ${{ matrix.os == 'ubuntu-24.04' || matrix.os == 'ubuntu-24.04-arm' }}
+        run: |
+          sudo apt update
+          sudo apt install ninja-build googletest                                                                  \
+                           gcc-14 g++-14 libstdc++-14-dev                                                          \
+                           clang-18 lld-18 libc++-18-dev libc++abi-18-dev libclang-common-18-dev
+          # We use lld because it faster than ld and gold and don't have strange issues like mold
+          sudo ln -sf /usr/bin/lld-18 /usr/local/bin/ld
+
+          sudo update-alternatives                                                                                     \
+            --install /usr/bin/gcc        gcc        /usr/bin/gcc-14        200                                        \
+            --slave   /usr/bin/g++        g++        /usr/bin/g++-14                                                   \
+            --slave   /usr/bin/gcc-ar     gcc-ar     /usr/bin/gcc-ar-14                                                \
+            --slave   /usr/bin/gcc-nm     gcc-nm     /usr/bin/gcc-nm-14                                                \
+            --slave   /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-14                                            \
+            --slave   /usr/bin/gcov       gcov       /usr/bin/gcov-14                                                  \
+            --slave   /usr/bin/gcov-tool  gcov-tool  /usr/bin/gcov-tool-14                                             \
+            --slave   /usr/bin/gcov-dump  gcov-dump  /usr/bin/gcov-dump-14
+          sudo update-alternatives --auto gcc
+
+          gcc --version; gcov --version
+
+      - name: Update deps on macOS
+        if: ${{ matrix.os == 'macos-15' }}
+        run: |
+          brew update
+          brew install ninja llvm@19 gcc@14
+
+      - name: Configure CMake Posix
+        if: ${{ matrix.os != 'windows-2025' }}
+        run: |
+          flags=${{ matrix.flags }}
+          build_type=${{ matrix.build_type }}
+          compiler_names=(clang gnu apple_clang)
+          stdlib_names=(libcxx libstdcxx default)
+          linker=""
+          if [[ ${{ matrix.os }} == "macos-15" ]]; then
+            llvm=/opt/homebrew/opt/llvm@19
+            # TODO(myannyax?) FIBER
+            YACLIB_FAULT=(OFF THREAD)
+            cxx_compilers=("$llvm/bin/clang++" g++-14 clang++)
+            link_options=(
+              "-L$llvm/lib;-Wl,-rpath,$llvm/lib"
+              "-stdlib=libstdc++"
+              ""
+            )
+            compile_options=(
+              "-I$llvm/include;-I$llvm/include/c++/v1/"
+              "-stdlib=libstdc++"
+              ""
+            )
+            slowdown=8
+          else
+            cxx_compilers=(clang++-18 g++)
+            link_options=(
+              "-stdlib=libc++;-lc++abi"
+              "-stdlib=libstdc++"
+            )
+            compile_options=(
+              "-stdlib=libc++"
+              "-stdlib=libstdc++"
+            )
+            slowdown=1
+            linker="-fuse-ld=lld-18"
+          fi
+
+          if [[ "$flags" == "TSAN" ]]; then
+            YACLIB_FAULT=(OFF THREAD)
+          fi
+
+          for (( i=0; i<${#cxx_compilers[*]}; i+=1 )); do
+            for (( j=0; j<${#link_options[*]}; j+=1 )); do
+              for yaclib_fault in ${YACLIB_FAULT[*]}; do
+                link_option=${link_options[$j]}; compile_option=${compile_options[$j]}
+                if [[ ${{ matrix.os }} == "macos-15" ]]; then # macOS workarounds
+                  if [[ "${compiler_names[$i]}" != "gnu" && "$flags" == "LSAN" ]]; then
+                    # AppleClang doesn't support LSAN.
+                    # But also random crash with LLVM CLang LSAN. TODO(myannyax) Try to debug and create issue to LLVM CLang LSAN.
+                    # >CHECK failed: sanitizer_thread_registry.cpp:58 "((ThreadStatusFinished)) == ((status))" (0x3, 0x4) (tid=47505)
+                    # Btw I don't think leak sanitizer is needed on a macOS.
+                    # After all, if your application crashed from lack of memory, why fix it? Better buy a new mac!
+                    continue
+                  fi
+                  if [[ "${compiler_names[$i]}" == "gnu" ]]; then
+                    if [[ "$flags" == "UBSAN" || "$flags" == "ASAN" || "$flags" == "TSAN" ]]; then
+                      continue  # TODO(MBkkt) gcc doesn't have macos arm sanitizers  
+                    fi
+                    link_option="${link_option};-Wl,-ld_classic"
+                  fi
+                fi
+                if [[ "${compiler_names[$i]}" != "clang" && "${stdlib_names[$j]}" != "default" ]]; then
+                  # TODO(MBkkt) I think we should specify path to libstdcxx
+                  # TODO(MBkkt) I dunno how to get GNU GCC to work with other stdlibs
+                  # TODO(MBkkt) I dunno how to get AppleClang to work with other stdlibs
+                  # Btw I dunno what stdlib would be using libstdcxx or apple_libcxx, just some default
+                  continue
+                fi
+                if [[ "${compiler_names[$i]}" == "clang" ]]; then
+                  if [[ ${{ matrix.os }} == "macos-15" && "${stdlib_names[$j]}" == "libstdcxx" ]]; then
+                    continue  # TODO(MBkkt) Specify path to libstdcxx
+                  fi
+                  if [[ "${stdlib_names[$j]}" == "default" ]]; then
+                    link_option=""; compile_option="-stdlib=libc++"
+                  fi
+                fi
+
+                dir="build_${compiler_names[$i]}_${stdlib_names[$j]}_fault_${yaclib_fault}"
+                echo $dir
+                ${cxx_compilers[$i]} --version
+
+                cmake -S . -B $dir                                                                                     \
+                  -DCMAKE_BUILD_TYPE=$build_type                                                                       \
+                  -DYACLIB_CXX_STANDARD=23                                                                             \
+                  -DYACLIB_TEST=SINGLE                                                                                 \
+                  -DYACLIB_FLAGS="CORO;$flags"                                                                         \
+                  -DCMAKE_CXX_COMPILER=${cxx_compilers[$i]}                                                            \
+                  -G"Ninja"                                                                                            \
+                  -DYACLIB_LINK_OPTIONS="$link_option;$linker"                                                         \
+                  -DYACLIB_COMPILE_OPTIONS="$compile_option"                                                           \
+                  -DYACLIB_FAULT=$yaclib_fault                                                                         \
+                  -DYACLIB_LOG="DEBUG"                                                                                 \
+                  -DYACLIB_DEFINITIONS="YACLIB_CI_SLOWDOWN=$slowdown"
+
+              done
+            done
+          done
+
+      - name: Configure CMake Windows
+        if: ${{ matrix.os == 'windows-2025' }}
+        shell: bash
+        run: |
+          flags=${{ matrix.flags }}
+
+          names=(MSVC ClangCL) # TODO(MBkkt) MinGW
+          generators=("Visual Studio 17 2022" "Visual Studio 17 2022" "MinGW Makefiles")
+          options=("-A x64" "-A x64 -T ClangCL" "-DCMAKE_BUILD_TYPE=${{ matrix.build_type }}")
+          # TODO(myannyax?) FIBER
+          YACLIB_FAULT=(OFF THREAD)
+
+          for (( i=0; i<${#names[*]}; i+=1 )); do
+            for yaclib_fault in ${YACLIB_FAULT[*]}; do
+              if [[ "$flags" == "ASAN" && "${names[$i]}" != "MSVC" ]]; then
+                continue  # TODO(MBkkt) I can't build with any other ASAN on Windows
+                # I think ClangCL with ASAN should be possible
+              fi
+              if [[ "${names[$i]}" == "MSVC" ]]; then
+                cxx_standard=23
+                coroutine_option="CORO"
+              else
+                cxx_standard=17
+                coroutine_option=""
+              fi
+
+              dir="build_${names[$i]}_fault_${yaclib_fault}"
+              echo $dir
+
+              cmake -S . -B $dir                                                                                       \
+                -DYACLIB_CXX_STANDARD=${cxx_standard}                                                                  \
+                -DYACLIB_TEST=SINGLE                                                                                   \
+                -DYACLIB_FLAGS="$coroutine_option;$flags"                                                              \
+                -DYACLIB_FAULT=$yaclib_fault                                                                           \
+                -DYACLIB_LOG="DEBUG"                                                                                   \
+                -G"${generators[$i]}"                                                                                  \
+                ${options[$i]}
+
+            done
+          done
+
+      - name: Build
+        shell: bash
+        run: |
+          for dir in build*/; do
+            echo $dir
+            cmake --build $dir --config ${{ matrix.build_type }} --parallel
+            echo
+          done
+
+      - name: Test
+        shell: bash
+        run: |
+          flags=${{ matrix.flags }}
+          default="help=0 verbosity=0 halt_on_error=0"
+          # 'detect_invalid_pointer_pairs' Doesn't work well for most compilers so '=0'
+          export ASAN_OPTIONS="$default debug=1 detect_leaks=0 check_initialization_order=1 detect_stack_use_after_return=1 strict_init_order=1 strict_string_checks=1 detect_invalid_pointer_pairs=0"
+          export TSAN_OPTIONS="$default history_size=2 io_sync=0 detect_deadlocks=1 second_deadlock_stack=1"  
+          export UBSAN_OPTIONS="$default print_stacktrace=1"
+          if [[ "$flags" == "LSAN" ]]; then  # This is necessary for the schizo macOS ASAN, who for some reason reads LSAN_OPTIONS
+            export LSAN_OPTIONS="$default debug=1 detect_leaks=1"
+          fi
+          for dir in build*/; do
+            cd $dir
+            ctest --output-on-failure -C ${{ matrix.build_type }} -V
+            cd ..
+          done

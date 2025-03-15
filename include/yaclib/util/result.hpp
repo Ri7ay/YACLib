@@ -1,165 +1,205 @@
 #pragma once
 
+#include <yaclib/fwd.hpp>
 #include <yaclib/util/type_traits.hpp>
 
 #include <exception>
-#include <system_error>
+#include <utility>
 #include <variant>
 
-namespace yaclib::util {
-
-template <typename T>
-class Result;
-
-namespace detail {
-
-template <typename U>
-struct ResultValue {
-  using type = U;
-};
-
-template <typename U>
-struct ResultValue<Result<U>> {
-  using type = U;
-};
-
-template <typename T>
-using ResultValueT = typename ResultValue<T>::type;
-
-}  // namespace detail
+namespace yaclib {
 
 /**
  * Result states \see Result
- * \enum Empty, Value, Error, Exception
+ * \enum Value, Exception, Error, Empty
  */
-enum class ResultState {
-  Empty = 0,
-  Value,
-  Error,
-  Exception,
+enum class [[nodiscard]] ResultState : unsigned char {
+  Value = 0,
+  Exception = 1,
+  Error = 2,
+  Empty = 3,
 };
 
 /**
- * \class Exception for std::error_code
+ * Default error
+ */
+struct [[nodiscard]] StopError final {
+  constexpr StopError(StopTag) noexcept {
+  }
+  constexpr StopError(StopError&&) noexcept = default;
+  constexpr StopError(const StopError&) noexcept = default;
+  constexpr StopError& operator=(StopError&&) noexcept = default;
+  constexpr StopError& operator=(const StopError&) noexcept = default;
+
+  static const char* What() noexcept {
+    return "yaclib::StopError";
+  }
+};
+
+YACLIB_DEFINE_VOID_COMPARE(StopError)
+
+/**
+ * \class Exception for Error
  * \see Result
  */
-class ResultError : public std::exception {
+template <typename Error>
+class [[nodiscard]] ResultError final : public std::exception {
  public:
-  explicit ResultError(std::error_code error) : _error{error} {
+  ResultError(ResultError&&) noexcept(std::is_nothrow_move_constructible_v<Error>) = default;
+  ResultError(const ResultError&) noexcept(std::is_nothrow_copy_constructible_v<Error>) = default;
+  ResultError& operator=(ResultError&&) noexcept(std::is_nothrow_move_assignable_v<Error>) = default;
+  ResultError& operator=(const ResultError&) noexcept(std::is_nothrow_copy_assignable_v<Error>) = default;
+
+  explicit ResultError(Error&& error) noexcept(std::is_nothrow_move_constructible_v<Error>) : _error{std::move(error)} {
   }
-  std::error_code Get() const {
+  explicit ResultError(const Error& error) noexcept(std::is_nothrow_copy_constructible_v<Error>) : _error{error} {
+  }
+
+  [[nodiscard]] Error& Get() & noexcept {
+    return _error;
+  }
+  [[nodiscard]] const Error& Get() const& noexcept {
     return _error;
   }
 
+  const char* what() const noexcept final {
+    return _error.What();
+  }
+
  private:
-  std::error_code _error;
+  Error _error;
 };
 
-struct ResultEmpty : std::exception {};
+/**
+ * \class Exception for Empty, invalid state
+ * \see Result
+ */
+struct ResultEmpty final : std::exception {
+  const char* what() const noexcept final {
+    return "yaclib::ResultEmpty";
+  }
+};
 
 /**
  * Encapsulated return value from caller
  *
- * \tparam T type to store in Result
+ * \tparam ValueT type of value that stored in Result
+ * \tparam E type of error that stored in Result
  */
-template <typename T>
-class Result {
-  static_assert(!std::is_reference_v<T>,
-                "Result cannot be instantiated with reference, "
-                "you can use std::reference_wrapper or pointer");
-  static_assert(!std::is_volatile_v<T> && !std::is_const_v<T>,
-                "Result cannot be instantiated with cv qualifiers, because it's unnecessary");
-  static_assert(!util::IsResultV<T>, "Result cannot be instantiated with Result");
-  static_assert(!util::IsFutureV<T>, "Result cannot be instantiated with Future");
-  static_assert(!std::is_same_v<T, std::error_code>, "Result cannot be instantiated with std::error_code");
-  static_assert(!std::is_same_v<T, std::exception_ptr>, "Result cannot be instantiated with std::exception_ptr");
-
-  struct Unit {};
-  using VariantT =
-      std::variant<std::monostate, std::error_code, std::exception_ptr, std::conditional_t<std::is_void_v<T>, Unit, T>>;
+template <typename ValueT, typename E>
+class Result final {
+  static_assert(Check<ValueT>(), "V should be valid");
+  static_assert(Check<E>(), "E should be valid");
+  static_assert(!std::is_same_v<ValueT, E>, "Result cannot be instantiated with same V and E, because it's ambiguous");
+  static_assert(std::is_constructible_v<E, StopTag>, "Error should be constructable from StopTag");
+  using V = std::conditional_t<std::is_void_v<ValueT>, Unit, ValueT>;
+  using Variant = std::variant<V, std::exception_ptr, E, std::monostate>;
 
  public:
-  static Result Default() {
-    static_assert(std::is_void_v<T>, "Only for void");
-    return {Unit{}};
+  Result(Result&& other) noexcept(std::is_nothrow_move_constructible_v<Variant>) = default;
+  Result(const Result& other) noexcept(std::is_nothrow_copy_constructible_v<Variant>) = default;
+  Result& operator=(Result&& other) noexcept(std::is_nothrow_move_assignable_v<Variant>) = default;
+  Result& operator=(const Result& other) noexcept(std::is_nothrow_copy_assignable_v<Variant>) = default;
+
+  template <typename... Args,
+            typename =
+              std::enable_if_t<(sizeof...(Args) > 1 || !std::is_same_v<std::decay_t<head_t<Args&&...>>, Result>), void>>
+  Result(Args&&... args) noexcept(std::is_nothrow_constructible_v<Variant, std::in_place_type_t<V>, Args&&...>)
+    : Result{std::in_place, std::forward<Args>(args)...} {
   }
 
-  Result() : _result{std::monostate{}} {
+  template <typename... Args>
+  Result(std::in_place_t,
+         Args&&... args) noexcept(std::is_nothrow_constructible_v<Variant, std::in_place_type_t<V>, Args&&...>)
+    : _result{std::in_place_type<V>, std::forward<Args>(args)...} {
   }
 
-  Result(Result&& other) noexcept(std::is_nothrow_move_constructible_v<VariantT>) : _result{std::move(other._result)} {
+  Result(std::exception_ptr exception) noexcept
+    : _result{std::in_place_type<std::exception_ptr>, std::move(exception)} {
   }
 
-  Result& operator=(Result&& other) noexcept(std::is_nothrow_move_assignable_v<VariantT>) {
-    _result = std::move(other._result);
+  Result(E error) noexcept : _result{std::in_place_type<E>, std::move(error)} {
+  }
+
+  Result(StopTag tag) noexcept : _result{std::in_place_type<E>, tag} {
+  }
+
+  Result() noexcept : _result{std::monostate{}} {
+  }
+
+  template <typename Arg, typename = std::enable_if_t<!is_result_v<std::decay_t<Arg>>, void>>
+  Result& operator=(Arg&& arg) noexcept(std::is_nothrow_assignable_v<Variant, Arg>) {
+    _result = std::forward<Arg>(arg);
     return *this;
   }
 
-  Result(const Result& other) = delete;
-  Result& operator=(const Result& other) = delete;
-
-  template <typename U>
-  Result(U&& result) : _result{std::forward<U>(result)} {
-  }
-
-  template <typename U>
-  void Set(U&& result) {
-    _result = std::forward<U>(result);
-  }
-
-  explicit operator bool() const noexcept {
+  [[nodiscard]] explicit operator bool() const noexcept {
     return State() == ResultState::Value;
   }
 
-  T Ok() && {
-    switch (State()) {
-      case ResultState::Value: {
-        if constexpr (std::is_void_v<T>) {
-          return;
-        } else {
-          return std::move(std::get<T>(_result));
-        }
-      }
-      case ResultState::Exception: {
-        std::rethrow_exception(std::get<std::exception_ptr>(_result));
-      }
-      case ResultState::Error: {
-        throw ResultError{std::get<std::error_code>(_result)};
-      }
-      case ResultState::Empty: {
-        throw ResultEmpty{};
-      }
-    }
+  void Ok() & = delete;
+  void Ok() const&& = delete;
+  void Value() & = delete;
+  void Value() const&& = delete;
+  void Exception() & = delete;
+  void Exception() const&& = delete;
+  void Error() & = delete;
+  void Error() const&& = delete;
+
+  [[nodiscard]] V&& Ok() && {
+    return Get(std::move(*this));
+  }
+  [[nodiscard]] const V& Ok() const& {
+    return Get(*this);
   }
 
   [[nodiscard]] ResultState State() const noexcept {
-    if (std::holds_alternative<std::monostate>(_result)) {
-      return ResultState::Empty;
-    } else if (std::holds_alternative<std::error_code>(_result)) {
-      return ResultState::Error;
-    } else if (std::holds_alternative<std::exception_ptr>(_result)) {
-      return ResultState::Exception;
-    } else {
-      return ResultState::Value;
-    }
+    return ResultState{static_cast<unsigned char>(_result.index())};
   }
 
-  T Value() && noexcept {
-    if constexpr (!std::is_void_v<T>) {
-      return std::move(std::get<T>(_result));
-    }
+  [[nodiscard]] V&& Value() && noexcept {
+    return std::get<V>(std::move(_result));
+  }
+  [[nodiscard]] const V& Value() const& noexcept {
+    return std::get<V>(_result);
   }
 
-  std::error_code Error() && noexcept {
-    return std::get<std::error_code>(_result);
+  [[nodiscard]] std::exception_ptr&& Exception() && noexcept {
+    return std::get<std::exception_ptr>(std::move(_result));
   }
-
-  std::exception_ptr Exception() && noexcept {
+  [[nodiscard]] const std::exception_ptr& Exception() const& noexcept {
     return std::get<std::exception_ptr>(_result);
   }
 
+  [[nodiscard]] E&& Error() && noexcept {
+    return std::get<E>(std::move(_result));
+  }
+  [[nodiscard]] const E& Error() const& noexcept {
+    return std::get<E>(_result);
+  }
+
+  [[nodiscard]] Variant& Internal() {
+    return _result;
+  }
+
  private:
-  VariantT _result;
+  template <typename R>
+  static decltype(auto) Get(R&& r) {
+    switch (r.State()) {
+      case ResultState::Value:
+        return std::forward<R>(r).Value();
+      case ResultState::Exception:
+        std::rethrow_exception(std::forward<R>(r).Exception());
+      case ResultState::Error:
+        throw ResultError{std::forward<R>(r).Error()};
+      default:
+        throw ResultEmpty{};
+    }
+  }
+
+  Variant _result;
 };
 
-}  // namespace yaclib::util
+extern template class Result<>;
+
+}  // namespace yaclib
