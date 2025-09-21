@@ -23,6 +23,8 @@ void Start(BaseCore* head) noexcept;
  */
 template <typename V, typename E>
 class Task final {
+  using CoreType = detail::CoreType;
+
  public:
   static_assert(Check<V>(), "V should be valid");
   static_assert(Check<E>(), "E should be valid");
@@ -66,20 +68,24 @@ class Task final {
 
   template <typename Func>
   /*Task*/ auto Then(IExecutor& e, Func&& f) && {
-    return detail::SetCallback<detail::CoreType::Then, detail::CallbackType::LazyOn>(_core, &e, std::forward<Func>(f));
+    YACLIB_ASSERT(!Ready());
+    static constexpr auto CoreT = CoreType::ToUnique | CoreType::Call | CoreType::Lazy;
+    return detail::SetCallback<CoreT, false>(_core, &e, std::forward<Func>(f));
   }
   template <typename Func>
   /*Task*/ auto ThenInline(Func&& f) && {
-    return detail::SetCallback<detail::CoreType::Then, detail::CallbackType::LazyInline>(_core, nullptr,
-                                                                                         std::forward<Func>(f));
+    YACLIB_ASSERT(!Ready());
+    static constexpr auto CoreT = CoreType::ToUnique | CoreType::Lazy;
+    return detail::SetCallback<CoreT, false>(_core, nullptr, std::forward<Func>(f));
   }
   template <typename Func>
   /*Task*/ auto Then(Func&& f) && {
-    return detail::SetCallback<detail::CoreType::Then, detail::CallbackType::LazyOn>(_core, nullptr,
-                                                                                     std::forward<Func>(f));
+    YACLIB_ASSERT(!Ready());
+    static constexpr auto CoreT = CoreType::ToUnique | CoreType::Call | CoreType::Lazy;
+    return detail::SetCallback<CoreT, false>(_core, nullptr, std::forward<Func>(f));
   }
 
-  void Cancel() && {
+  void Cancel() && noexcept {
     std::move(*this).Detach(MakeInline(StopTag{}));
   }
 
@@ -97,10 +103,12 @@ class Task final {
   }
 
   Future<V, E> ToFuture() && noexcept {
+    YACLIB_ASSERT(Valid());
     detail::Start(_core.Get());
     return {std::move(_core)};
   }
   FutureOn<V, E> ToFuture(IExecutor& e) && noexcept {
+    YACLIB_ASSERT(Valid());
     detail::Start(_core.Get(), e);
     return {std::move(_core)};
   }
@@ -128,14 +136,14 @@ class Task final {
    *
    * \return internal Core state ptr
    */
-  [[nodiscard]] detail::ResultCorePtr<V, E>& GetCore() noexcept {
+  [[nodiscard]] detail::UniqueCorePtr<V, E>& GetCore() noexcept {
     return _core;
   }
-  Task(detail::ResultCorePtr<V, E> core) noexcept : _core{std::move(core)} {
+  Task(detail::UniqueCorePtr<V, E> core) noexcept : _core{std::move(core)} {
   }
 
  private:
-  detail::ResultCorePtr<V, E> _core;
+  detail::UniqueCorePtr<V, E> _core;
 };
 
 extern template class Task<>;

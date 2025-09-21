@@ -43,4 +43,19 @@ YACLIB_INLINE auto Noop() noexcept {
   }
 }
 
+YACLIB_INLINE void Loop(InlineCore* prev, InlineCore* curr) noexcept {
+  while (curr != nullptr) {
+    auto* next = curr->Here(*prev);
+    prev = curr;
+    curr = next;
+  }
+}
+
+template <bool SymmetricTransfer>
+#if YACLIB_SYMMETRIC_TRANSFER != 0
+using Transfer = std::conditional_t<SymmetricTransfer, yaclib_std::coroutine_handle<>, InlineCore*>;
+#else
+using Transfer = InlineCore*;
+#endif
+
 }  // namespace yaclib::detail

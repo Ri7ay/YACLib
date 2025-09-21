@@ -4,6 +4,7 @@
 #include <yaclib/async/future.hpp>
 #include <yaclib/async/promise.hpp>
 #include <yaclib/async/run.hpp>
+#include <yaclib/async/shared_contract.hpp>
 #include <yaclib/async/wait.hpp>
 #include <yaclib/async/wait_for.hpp>
 #include <yaclib/async/wait_until.hpp>
@@ -222,6 +223,31 @@ TEST(Wait, ResetWait) {
   tp.HardStop();
   tp.Wait();
 }
+
+TEST(Wait, Stress) {
+  yaclib::FairThreadPool tp{4};
+
+  std::vector<yaclib::Future<int>> futures;
+  std::vector<yaclib::Promise<int>> promises;
+
+  for (size_t i = 0; i < 100000; ++i) {
+    auto [f, p] = yaclib::MakeContract<int>();
+    futures.push_back(std::move(f));
+    promises.push_back(std::move(p));
+  }
+
+  yaclib::Run(tp, [&] {
+    for (size_t i = 0; i < 100000; ++i) {
+      std::move(promises[i]).Set(5);
+    }
+  }).Detach();
+
+  auto done = WaitFor(10ms, futures.begin(), futures.end());
+
+  tp.SoftStop();
+  tp.Wait();
+}
+
 // silly test to pass codecov
 TEST(SillyTest, ForTouch) {
   yaclib::FairThreadPool tp;
@@ -240,6 +266,69 @@ TEST(SillyTest, ForTouch) {
   yaclib::Wait(fut);
   auto res = std::as_const(fut).Touch();
   EXPECT_EQ(std::move(res).Ok(), 42);
+  tp.HardStop();
+  tp.Wait();
+}
+
+TEST(Wait, WaitOnShared) {
+  yaclib::FairThreadPool tp;
+  auto [sf, sp] = yaclib::MakeSharedContract<int>();
+  yaclib::Submit(tp, [sp = std::move(sp)]() mutable {
+    yaclib_std::this_thread::sleep_for(1ms);
+    std::move(sp).Set(42);
+  });
+
+  yaclib::Wait(sf);
+
+  EXPECT_EQ(sf.Touch().Value(), 42);
+
+  tp.HardStop();
+  tp.Wait();
+}
+
+TEST(Wait, WaitOnSharedConcurrent) {
+  yaclib::FairThreadPool tp(4);
+  auto [sf, sp] = yaclib::MakeSharedContract<int>();
+  yaclib::Submit(tp, [sp = std::move(sp)]() mutable {
+    yaclib_std::this_thread::sleep_for(2ms);
+    std::move(sp).Set(42);
+  });
+
+  for (size_t i = 0; i < 4; ++i) {
+    yaclib::Submit(tp, [&sf = sf]() mutable {
+      yaclib_std::this_thread::sleep_for(1ms);
+      yaclib::Wait(sf);
+      EXPECT_EQ(sf.Touch().Value(), 42);
+    });
+
+    yaclib::Submit(tp, [&sf = sf]() mutable {
+      yaclib_std::this_thread::sleep_for(3ms);
+      yaclib::Wait(sf);
+      EXPECT_EQ(sf.Touch().Value(), 42);
+    });
+  }
+
+  tp.SoftStop();
+  tp.Wait();
+}
+
+TEST(Wait, WaitOnMix) {
+  yaclib::FairThreadPool tp(4);
+
+  auto [sf, sp] = yaclib::MakeSharedContract<int>();
+  auto [f, p] = yaclib::MakeContract<int>();
+
+  yaclib::Submit(tp, [sp = std::move(sp), p = std::move(p)]() mutable {
+    yaclib_std::this_thread::sleep_for(1ms);
+    std::move(sp).Set(42);
+    std::move(p).Set(42);
+  });
+
+  yaclib::Wait(sf, f);
+
+  EXPECT_EQ(sf.Touch().Value(), 42);
+  EXPECT_EQ(std::move(f).Touch().Value(), 42);
+
   tp.HardStop();
   tp.Wait();
 }

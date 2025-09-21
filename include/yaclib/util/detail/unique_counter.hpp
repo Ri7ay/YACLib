@@ -17,10 +17,14 @@ struct OneCounter : CounterBase {
 
   // compiler remove this call from code
   void Add(std::size_t) noexcept {  // LCOV_EXCL_LINE
-  }                                 // LCOV_EXCL_LINE
+  }  // LCOV_EXCL_LINE
 
   void Sub(std::size_t) noexcept {
     Deleter::Delete(*this);
+  }
+
+  std::size_t Get() noexcept {
+    return 1;
   }
 };
 
